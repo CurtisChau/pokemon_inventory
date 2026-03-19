@@ -27,9 +27,13 @@
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
         Mobile Preview
       </button></li>
-      <div class="px-4 py-3 mt-4 text-xs text-base-content/60 border-t border-base-200 flex flex-col items-center justify-center gap-1.5 w-full">
-        <span class="font-bold uppercase tracking-wide flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Ex. Rate <span class="badge badge-xs badge-info animate-pulse ml-1 opacity-70">Live</span></span>
-        <span class="font-mono bg-base-200/50 px-2 py-1 rounded-md border border-base-300 shadow-inner w-full text-center" id="exchange-rate-val">Loading...</span>
+      <div class="px-4 py-3 mt-4 text-xs text-base-content/60 border-t border-base-200 flex flex-col gap-1.5 w-full">
+        <span class="font-bold uppercase tracking-wide flex items-center justify-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Exchange Rates <span class="badge badge-xs badge-info animate-pulse ml-1 opacity-70">Live</span></span>
+        <div class="grid grid-cols-3 gap-1 grid-rows-1 w-full text-center" id="exchange-rate-container">
+            <span class="font-mono bg-base-200/50 px-1 py-1 rounded-md border border-base-300 shadow-inner w-full" id="er-cad">...</span>
+            <span class="font-mono bg-base-200/50 px-1 py-1 rounded-md border border-base-300 shadow-inner w-full" id="er-cny">...</span>
+            <span class="font-mono bg-base-200/50 px-1 py-1 rounded-md border border-base-300 shadow-inner w-full" id="er-hkd">...</span>
+        </div>
       </div>
     </ul>
   </div>
@@ -103,14 +107,38 @@
           <div class="label"><span class="label-text text-[10px]">Qty</span></div>
           <input type="number" name="qty" value="1" min="1" class="input input-bordered w-full px-2" required />
         </label>
-        <label class="form-control w-[25%]">
-          <div class="label"><span class="label-text text-[10px]">Unit CoG ($)</span></div>
-          <input type="number" step="0.01" name="cog" placeholder="0.00" class="input input-bordered w-full px-2" />
-        </label>
-        <label class="form-control w-[25%]">
-          <div class="label"><span class="label-text text-[10px] text-warning font-bold">Bulk Ship ($)</span></div>
-          <input type="number" step="0.01" name="shipping_cost" placeholder="0.00" class="input input-bordered w-full px-2" />
-        </label>
+        <div class="form-control w-[25%] relative group">
+          <div class="label pb-0 flex flex-col items-start gap-1"><span class="label-text text-[10px]">Unit CoG (CAD)</span></div>
+          <input type="number" step="0.01" name="cog" id="add_item_cog_input" placeholder="0.00" class="input input-bordered w-full px-2 text-sm" />
+          <label class="cursor-pointer label p-0 mt-1 justify-start gap-1">
+             <input type="checkbox" id="add_item_currency_toggle" class="checkbox checkbox-xs checkbox-primary" onchange="toggleInlineConverter('add_item', 'add_item_cog_input')" />
+             <span class="label-text text-[9px] font-bold text-primary">Foreign Curr</span>
+          </label>
+          <div id="add_item_inline_conv" class="hidden flex gap-1 mt-1 bg-base-200 p-1 rounded-md border border-base-300 absolute -bottom-10 left-0 w-full z-[90] shadow-xl">
+             <select id="add_item_conv_curr" class="select select-xs select-bordered w-14 p-0 pl-1 text-[10px]" onchange="calcInlineConversion('add_item', 'add_item_cog_input')">
+                <option value="USD">USD</option>
+                <option value="CNY">RMB</option>
+                <option value="HKD">HKD</option>
+             </select>
+             <input type="number" step="0.01" id="add_item_conv_amt" class="input input-xs input-bordered w-full p-1 text-[10px]" placeholder="Amt" oninput="calcInlineConversion('add_item', 'add_item_cog_input')" />
+          </div>
+        </div>
+        <div class="form-control w-[25%] relative group">
+          <div class="label pb-0 flex flex-col items-start gap-1"><span class="label-text text-[10px] text-warning font-bold">Bulk Ship ($)</span></div>
+          <input type="number" step="0.01" name="shipping_cost" id="add_item_ship_input" placeholder="0.00" class="input input-bordered w-full px-2" />
+          <label class="cursor-pointer label p-0 mt-1 justify-start gap-1">
+             <input type="checkbox" id="add_item_ship_currency_toggle" class="checkbox checkbox-xs checkbox-warning" onchange="toggleInlineConverter('add_item_ship', 'add_item_ship_input')" />
+             <span class="label-text text-[9px] font-bold text-warning">Foreign Curr</span>
+          </label>
+          <div id="add_item_ship_inline_conv" class="hidden flex gap-1 mt-1 bg-base-200 p-1 rounded-md border border-base-300 absolute -bottom-10 left-0 w-full z-[90] shadow-xl">
+             <select id="add_item_ship_conv_curr" class="select select-xs select-bordered w-14 p-0 pl-1 text-[10px]" onchange="calcInlineConversion('add_item_ship', 'add_item_ship_input')">
+                <option value="HKD" selected>HKD</option>
+                <option value="USD">USD</option>
+                <option value="CNY">RMB</option>
+             </select>
+             <input type="number" step="0.01" id="add_item_ship_conv_amt" class="input input-xs input-bordered w-full p-1 text-[10px]" placeholder="Amt" oninput="calcInlineConversion('add_item_ship', 'add_item_ship_input')" />
+          </div>
+        </div>
       </div>
       <div class="flex gap-4">
         <label class="form-control w-full">
@@ -137,10 +165,22 @@
                <strong class="text-primary block mb-1">Bulk Freight Distribution</strong>
                Enter the total shipment cost. This backend mathematically slices this expense fractionally across the item's individual quantities recursively augmenting their Cost of Goods Sold tracking arrays.
             </div>
-            <label class="form-control w-full md:w-1/3">
-              <div class="label"><span class="label-text font-bold">Total Shipment Freight ($)</span></div>
+            <div class="form-control w-full md:w-1/3 relative group">
+              <div class="label pb-0 flex flex-col items-start gap-1"><span class="label-text font-bold">Total Shipment Freight ($)</span></div>
               <input type="number" step="0.01" id="bulk_total_shipping" name="total_shipping" value="0.00" class="input input-bordered input-primary w-full shadow-sm text-lg font-mono text-right" required />
-            </label>
+              <label class="cursor-pointer label p-0 mt-1 justify-end gap-1 w-full">
+                 <input type="checkbox" id="bulk_ship_currency_toggle" class="checkbox checkbox-xs checkbox-primary" onchange="toggleInlineConverter('bulk_ship', 'bulk_total_shipping')" />
+                 <span class="label-text text-[10px] font-bold text-primary">Foreign Currency Freight</span>
+              </label>
+              <div id="bulk_ship_inline_conv" class="hidden flex gap-1 mt-1 bg-base-200 p-1 rounded-md border border-base-300 absolute -bottom-12 right-0 w-full z-[90] shadow-xl">
+                 <select id="bulk_ship_conv_curr" class="select select-sm select-bordered w-20 text-xs" onchange="calcInlineConversion('bulk_ship', 'bulk_total_shipping')">
+                    <option value="HKD" selected>HKD</option>
+                    <option value="USD">USD</option>
+                    <option value="CNY">RMB</option>
+                 </select>
+                 <input type="number" step="0.01" id="bulk_ship_conv_amt" class="input input-sm input-bordered w-full" placeholder="Amt" oninput="calcInlineConversion('bulk_ship', 'bulk_total_shipping')" />
+              </div>
+            </div>
         </div>
         
         <div class="divider m-0 text-[10px] font-bold text-base-content/40 uppercase tracking-widest">Shipment Manifest Payload</div>
@@ -326,10 +366,22 @@
             <strong class="text-warning block mb-1 tracking-wider uppercase">Restock / Recount</strong>
             Update the total quantity owned. The system will automatically compute differences to correctly add or strip units from your dynamic Cost-of-Goods logs.
         </div>
-        <label class="form-control w-24">
-          <div class="label"><span class="label-text text-[10px] font-bold text-center w-full">Avg Unit Cost</span></div>
+        <div class="form-control w-28 relative">
+          <div class="label pb-0"><span class="label-text text-[10px] font-bold text-center w-full">Avg Unit (CAD)</span></div>
           <input type="number" step="0.01" name="avg_cog" id="edit_item_cog" min="0" class="input input-bordered w-full text-center font-bold" />
-        </label>
+          <label class="cursor-pointer label p-0 mt-1 justify-center gap-1">
+             <input type="checkbox" id="edit_item_currency_toggle" class="checkbox checkbox-xs checkbox-primary" onchange="toggleInlineConverter('edit_item', 'edit_item_cog')" />
+             <span class="label-text text-[9px] font-bold text-primary">Foreign</span>
+          </label>
+          <div id="edit_item_inline_conv" class="hidden flex gap-1 mt-1 bg-base-200 p-1 rounded-md border border-base-300 absolute -bottom-8 left-0 w-full z-[90] shadow-xl">
+             <select id="edit_item_conv_curr" class="select select-xs select-bordered w-12 p-0 pl-1 text-[10px]" onchange="calcInlineConversion('edit_item', 'edit_item_cog')">
+                <option value="USD">USD</option>
+                <option value="CNY">RMB</option>
+                <option value="HKD">HKD</option>
+             </select>
+             <input type="number" step="0.01" id="edit_item_conv_amt" class="input input-xs input-bordered w-full p-1 text-[10px]" placeholder="Amt" oninput="calcInlineConversion('edit_item', 'edit_item_cog')" />
+          </div>
+        </div>
         <label class="form-control w-24">
           <div class="label"><span class="label-text text-[10px] font-bold text-center w-full">Total Qty</span></div>
           <input type="number" name="qty" id="edit_item_qty" min="0" class="input input-bordered input-warning w-full text-center font-black text-lg" required />
@@ -506,10 +558,22 @@
     <h3 class="font-bold text-lg">Log Independent Shipping Expense</h3>
     <p class="py-2 text-sm opacity-70">If you already added items individually, seamlessly allocate a shared freight expense to them mathematically.</p>
     <form method="POST" action="/shipping/apply" class="py-4 space-y-4">
-      <label class="form-control w-full">
-        <div class="label"><span class="label-text font-bold">Total Freight Charged ($)</span></div>
-        <input type="number" step="0.01" name="total_cost" placeholder="0.00" class="input input-bordered input-warning w-full" required />
-      </label>
+      <div class="form-control w-full relative group">
+        <div class="label pb-0 flex flex-col items-start gap-1"><span class="label-text font-bold">Total Freight Charged ($)</span></div>
+        <input type="number" step="0.01" name="total_cost" id="indep_ship_input" placeholder="0.00" class="input input-bordered input-warning w-full" required />
+        <label class="cursor-pointer label p-0 mt-1 justify-start gap-1">
+           <input type="checkbox" id="indep_ship_currency_toggle" class="checkbox checkbox-xs checkbox-warning" onchange="toggleInlineConverter('indep_ship', 'indep_ship_input')" />
+           <span class="label-text text-[11px] font-bold text-warning">Foreign Currency Freight</span>
+        </label>
+        <div id="indep_ship_inline_conv" class="hidden flex gap-1 mt-1 bg-base-200 p-2 rounded-md border border-base-300 absolute -bottom-14 left-0 w-1/2 z-[90] shadow-xl">
+           <select id="indep_ship_conv_curr" class="select select-sm select-bordered w-20" onchange="calcInlineConversion('indep_ship', 'indep_ship_input')">
+              <option value="HKD" selected>HKD</option>
+              <option value="USD">USD</option>
+              <option value="CNY">RMB</option>
+           </select>
+           <input type="number" step="0.01" id="indep_ship_conv_amt" class="input input-sm input-bordered w-full" placeholder="Amt" oninput="calcInlineConversion('indep_ship', 'indep_ship_input')" />
+        </div>
+      </div>
       
       <div class="form-control mt-4">
         <div class="label"><span class="label-text">Select Specific Units in Shipment</span></div>
@@ -552,9 +616,20 @@
 
 <!-- Record Sale Modal -->
 <dialog id="record_sale_modal" class="modal modal-bottom sm:modal-middle">
-  <div class="modal-box">
-    <h3 class="font-bold text-lg">Record a Sale (Manual)</h3>
-    <form method="POST" action="/sales/add" enctype="multipart/form-data" class="py-4 space-y-4">
+  <div class="modal-box w-11/12 max-w-2xl">
+    <div class="flex justify-between items-center mb-4 border-b border-base-200 pb-2">
+        <div>
+            <h3 class="font-bold text-lg">Record a Sale</h3>
+            <p class="text-xs opacity-70">Log a standard or multi-item bulk sale.</p>
+        </div>
+        <div class="tabs tabs-boxed bg-base-200">
+            <button type="button" id="tab_sale_single" class="tab tab-active font-bold px-4 transition-colors" onclick="switchSaleMode('single')">Single</button>
+            <button type="button" id="tab_sale_multi" class="tab font-bold text-base-content/60 px-4 transition-colors" onclick="switchSaleMode('multi')">Bulk / Cart</button>
+        </div>
+    </div>
+    
+    <!-- SINGLE SALE FORM -->
+    <form id="sale_single_form" method="POST" action="/sales/add" enctype="multipart/form-data" class="space-y-4">
       <label class="form-control w-full">
         <div class="label"><span class="label-text">Select Item</span></div>
         <select name="item_id" class="select select-bordered" required>
@@ -596,28 +671,208 @@
       </div>
 
       <label class="form-control w-full">
-        <div class="label"><span class="label-text text-xs font-bold text-base-content/70">Receipt / Proof Image (Optional)</span></div>
+        <div class="label"><span class="label-text text-xs font-bold text-base-content/70">Receipt (Optional)</span></div>
         <input type="file" name="sale_image" accept="image/*" class="file-input file-input-bordered file-input-sm w-full" />
       </label>
 
       <div class="modal-action mt-6">
         <button type="button" class="btn mr-2" onclick="window.record_sale_modal.close()">Cancel</button>
-        <button type="submit" class="btn btn-primary">Save Sale</button>
+        <button type="submit" class="btn btn-primary">Save Single Sale</button>
+      </div>
+    </form>
+
+    <!-- BULK SALE FORM -->
+    <form id="sale_multi_form" method="POST" action="/sales/bulk-add" enctype="multipart/form-data" class="hidden space-y-2">
+      <div class="flex justify-between items-end border-b border-base-200 pb-1 mb-2">
+          <h4 class="font-extrabold uppercase text-xs tracking-wider text-primary">Items Cart</h4>
+          <button type="button" class="btn btn-xs btn-outline btn-primary" onclick="addBulkSaleRow()">+ Add Item</button>
+      </div>
+      
+      <div id="sale_multi_container" class="space-y-2 max-h-48 overflow-y-auto w-full p-1 border border-base-200 rounded-lg shadow-inner bg-base-100"></div>
+      
+      <div class="divider my-1 text-[10px] uppercase font-bold opacity-60">Grand Totals</div>
+      
+      <div class="flex gap-4 w-full mb-2">
+        <label class="form-control w-1/2 relative group">
+          <div class="label pb-0"><span class="label-text text-xs font-bold text-success">Total Gross Sale ($)</span></div>
+          <input type="number" step="0.01" id="bulk_sale_gross" name="price" placeholder="0.00" class="input input-sm input-bordered w-full text-success font-black text-lg h-10" readonly required />
+          <label class="cursor-pointer label p-0 mt-1 justify-start gap-1">
+             <input type="checkbox" id="bulk_sale_gross_currency_toggle" class="checkbox checkbox-xs checkbox-success" onchange="toggleInlineConverter('bulk_sale_gross', 'bulk_sale_gross')" />
+             <span class="label-text text-[9px] font-bold text-success">Foreign Curr</span>
+          </label>
+          <div id="bulk_sale_gross_inline_conv" class="hidden flex gap-1 mt-1 bg-base-200 p-1 rounded-md border border-base-300 absolute -bottom-10 left-0 w-full z-[90] shadow-xl">
+             <select id="bulk_sale_gross_conv_curr" class="select select-xs select-bordered w-14 p-0 pl-1 text-[10px]" onchange="calcInlineConversion('bulk_sale_gross', 'bulk_sale_gross')">
+                <option value="USD">USD</option>
+                <option value="CNY">RMB</option>
+                <option value="HKD">HKD</option>
+             </select>
+             <input type="number" step="0.01" id="bulk_sale_gross_conv_amt" class="input input-xs input-bordered w-full p-1 text-[10px]" placeholder="Amt" oninput="calcInlineConversion('bulk_sale_gross', 'bulk_sale_gross')" />
+          </div>
+        </label>
+        
+        <label class="form-control w-1/2 relative group">
+          <div class="label pb-0"><span class="label-text text-xs font-bold text-error">Shipping Paid ($)</span></div>
+          <input type="number" step="0.01" id="bulk_sale_ship" name="shipping_cost" placeholder="0.00" class="input input-sm input-bordered w-full text-error font-black text-lg h-10" />
+          <label class="cursor-pointer label p-0 mt-1 justify-start gap-1">
+             <input type="checkbox" id="bulk_sale_ship_currency_toggle" class="checkbox checkbox-xs checkbox-error" onchange="toggleInlineConverter('bulk_sale_ship', 'bulk_sale_ship')" />
+             <span class="label-text text-[9px] font-bold text-error">Foreign Curr</span>
+          </label>
+          <div id="bulk_sale_ship_inline_conv" class="hidden flex gap-1 mt-1 bg-base-200 p-1 rounded-md border border-base-300 absolute -bottom-10 left-0 w-full z-[90] shadow-xl">
+             <select id="bulk_sale_ship_conv_curr" class="select select-xs select-bordered w-14 p-0 pl-1 text-[10px]" onchange="calcInlineConversion('bulk_sale_ship', 'bulk_sale_ship')">
+                <option value="HKD" selected>HKD</option>
+                <option value="USD">USD</option>
+                <option value="CNY">RMB</option>
+             </select>
+             <input type="number" step="0.01" id="bulk_sale_ship_conv_amt" class="input input-xs input-bordered w-full p-1 text-[10px]" placeholder="Amt" oninput="calcInlineConversion('bulk_sale_ship', 'bulk_sale_ship')" />
+          </div>
+        </label>
+      </div>
+      
+      <div class="flex gap-2 w-full mt-2">
+        <label class="form-control w-1/2">
+          <div class="label py-0 pb-1"><span class="label-text text-[10px] font-bold text-base-content/70">Conducted By</span></div>
+          <select name="person" class="select select-bordered select-sm" onchange="document.getElementById('bulk_sale_person_override').classList.toggle('hidden', this.value !== 'Other')" required>
+            <option value="Curtis">Curtis</option>
+            <option value="Michael">Michael</option>
+            <option value="Other">Other (Manual)</option>
+          </select>
+        </label>
+        <label class="form-control w-1/2 hidden" id="bulk_sale_person_override">
+          <div class="label py-0 pb-1"><span class="label-text text-[10px] text-base-content/70">Custom Name</span></div>
+          <input type="text" name="person_override" placeholder="Typing name..." class="input input-bordered input-sm w-full" />
+        </label>
+      </div>
+
+      <label class="form-control w-full my-1">
+        <div class="label py-0 pb-1"><span class="label-text text-[10px] font-bold text-base-content/70">Receipt (Optional)</span></div>
+        <input type="file" name="sale_image" accept="image/*" class="file-input file-input-bordered file-input-xs w-full" />
+      </label>
+
+      <div class="modal-action m-0 mt-4 pt-4 border-t border-base-200">
+        <button type="button" class="btn btn-sm mr-2" onclick="window.record_sale_modal.close()">Cancel</button>
+        <button type="submit" class="btn btn-sm btn-primary shadow-lg">Process Bulk Sale</button>
       </div>
     </form>
   </div>
 </dialog>
 
 <script>
+  function switchSaleMode(mode) {
+      if (mode === 'single') {
+          document.getElementById('tab_sale_single').classList.add('tab-active', 'text-base-content');
+          document.getElementById('tab_sale_single').classList.remove('text-base-content/60');
+          document.getElementById('tab_sale_multi').classList.remove('tab-active', 'text-base-content');
+          document.getElementById('tab_sale_multi').classList.add('text-base-content/60');
+          document.getElementById('sale_single_form').classList.remove('hidden');
+          document.getElementById('sale_multi_form').classList.add('hidden');
+      } else {
+          document.getElementById('tab_sale_multi').classList.add('tab-active', 'text-base-content');
+          document.getElementById('tab_sale_multi').classList.remove('text-base-content/60');
+          document.getElementById('tab_sale_single').classList.remove('tab-active', 'text-base-content');
+          document.getElementById('tab_sale_single').classList.add('text-base-content/60');
+          document.getElementById('sale_multi_form').classList.remove('hidden');
+          document.getElementById('sale_single_form').classList.add('hidden');
+          
+          if(document.getElementById('sale_multi_container').children.length === 0) {
+              addBulkSaleRow();
+          }
+      }
+  }
+
+  function addBulkSaleRow() {
+      const container = document.getElementById('sale_multi_container');
+      const idx = container.children.length;
+      const html = `
+        <div class="flex gap-2 items-center border border-base-300 p-2 rounded-lg bg-base-200/50 relative">
+          ${idx > 0 ? `<button type="button" class="btn btn-xs btn-circle btn-ghost absolute -top-2 -right-2 bg-base-100 border border-base-300 text-error shadow-sm z-50" onclick="this.parentElement.remove(); updateBulkSaleTotal();">✕</button>` : ``}
+          <label class="form-control flex-1">
+            <div class="label py-0 pb-1"><span class="label-text text-[10px] font-bold">Select Item</span></div>
+            <select name="item_id[]" class="select select-bordered select-xs w-full" onchange="const p = this.options[this.selectedIndex].dataset.price; this.closest('.flex').querySelector('.bulk-row-price').value = p || 0; updateBulkSaleTotal();" required>
+              <option value="" disabled selected>Select from inventory...</option>
+              <% if(typeof inventory !== 'undefined') { inventory.forEach(i => { let stock = i.lots.reduce((a,b)=>a+b.qty,0); if(stock > 0) { %><option value="<%= i.id %>" data-price="<%= i.market_price !== null ? i.market_price.toFixed(2) : '0' %>"><%= i.name %> (<%= i.set %>)</option><% }}) } %>
+            </select>
+          </label>
+          <label class="form-control w-20">
+            <div class="label py-0 pb-1"><span class="label-text text-[10px] font-bold">Unit Price</span></div>
+            <input type="number" step="0.01" name="row_price[]" value="0.00" class="input input-bordered input-xs w-full text-center bulk-row-price" oninput="updateBulkSaleTotal()" required />
+          </label>
+          <label class="form-control w-16">
+            <div class="label py-0 pb-1"><span class="label-text text-[10px] font-bold">Qty</span></div>
+            <input type="number" name="qty[]" value="1" min="1" class="input input-bordered input-xs w-full font-mono text-center bulk-row-qty" oninput="updateBulkSaleTotal()" required />
+          </label>
+        </div>
+      `;
+      container.insertAdjacentHTML('beforeend', html);
+  }
+
+  function updateBulkSaleTotal() {
+      let total = 0;
+      const prices = document.querySelectorAll('.bulk-row-price');
+      const qtys = document.querySelectorAll('.bulk-row-qty');
+      for(let i=0; i<prices.length; i++) {
+          total += (parseFloat(prices[i].value) || 0) * (parseInt(qtys[i].value) || 0);
+      }
+      document.getElementById('bulk_sale_gross').value = total.toFixed(2);
+  }
+
+  window.appExchangeRates = { CAD: 1.35, CNY: 7.20, HKD: 7.80 };
+  
+  function toggleInlineConverter(prefix, targetId) {
+      const toggle = document.getElementById(prefix + '_currency_toggle').checked;
+      const convDiv = document.getElementById(prefix + '_inline_conv');
+      const targetInput = document.getElementById(targetId);
+      
+      if (toggle) {
+          convDiv.classList.remove('hidden');
+          targetInput.readOnly = true;
+          targetInput.classList.add('bg-base-200');
+          calcInlineConversion(prefix, targetId);
+      } else {
+          convDiv.classList.add('hidden');
+          targetInput.readOnly = false;
+          targetInput.classList.remove('bg-base-200');
+      }
+  }
+  
+  function calcInlineConversion(prefix, targetId) {
+      const curr = document.getElementById(prefix + '_conv_curr').value;
+      const amt = parseFloat(document.getElementById(prefix + '_conv_amt').value) || 0;
+      const targetInput = document.getElementById(targetId);
+      
+      if (!amt) {
+          targetInput.value = '';
+          return;
+      }
+      
+      let cadValue = 0;
+      if (curr === 'USD') cadValue = amt * window.appExchangeRates.CAD;
+      if (curr === 'CNY') cadValue = (amt / window.appExchangeRates.CNY) * window.appExchangeRates.CAD;
+      if (curr === 'HKD') cadValue = (amt / window.appExchangeRates.HKD) * window.appExchangeRates.CAD;
+      
+      // Round UP to 1 decimal place ("1 sig fig" relative to cents)
+      cadValue = Math.ceil(cadValue * 10) / 10;
+      
+      targetInput.value = cadValue.toFixed(2);
+  }
+
   window.addEventListener('DOMContentLoaded', async () => {
     try {
       const res = await fetch('/api/exchange-rate');
       const data = await res.json();
-      if(data.usdToCad) {
-        document.getElementById('exchange-rate-val').innerHTML = '<span class="text-base-content/80">1 USD</span> <span class="opacity-50 mx-1">=</span> <span class="font-bold text-success">' + parseFloat(data.usdToCad).toFixed(2) + ' CAD</span>';
+      if(data.CAD) {
+        window.appExchangeRates = data;
+        
+        const erCad = document.getElementById('er-cad');
+        const erCny = document.getElementById('er-cny');
+        const erHkd = document.getElementById('er-hkd');
+        
+        if (erCad) erCad.innerHTML = '<span class="text-[10px] opacity-60 block leading-none">USD/CAD</span><span class="font-bold text-success text-xs leading-none">' + data.CAD.toFixed(2) + '</span>';
+        if (erCny) erCny.innerHTML = '<span class="text-[10px] opacity-60 block leading-none">RMB/CAD</span><span class="font-bold text-warning text-xs leading-none">' + (data.CNY ? (data.CAD / data.CNY).toFixed(3) : 'N/A') + '</span>';
+        if (erHkd) erHkd.innerHTML = '<span class="text-[10px] opacity-60 block leading-none">HKD/CAD</span><span class="font-bold text-info text-xs leading-none">' + (data.HKD ? (data.CAD / data.HKD).toFixed(3) : 'N/A') + '</span>';
       }
     } catch(e) {
-      document.getElementById('exchange-rate-val').innerText = 'Rate Unavailable';
+      const cont = document.getElementById('exchange-rate-container');
+      if (cont) cont.innerHTML = '<span class="text-xs opacity-50 w-full text-center py-2">Rates Unavailable</span>';
     }
   });
 

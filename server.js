@@ -123,32 +123,39 @@ app.post('/shipping/apply', async (req, res) => {
     res.redirect('/');
 });
 
-let cachedExchangeRate = 1.35; // Default fallback CAD rate
+let cachedRates = { CAD: 1.35, CNY: 7.20, HKD: 7.80 }; // Fallbacks
 let lastRateFetch = 0;
 
-async function getUsdToCadRate() {
+async function getExchangeRates() {
     const CACHE_DURATION = 4 * 60 * 60 * 1000; // 4 hours
     if (Date.now() - lastRateFetch > CACHE_DURATION) {
         try {
             const res = await fetchWithTimeout('https://open.er-api.com/v6/latest/USD');
             const data = await res.json();
             if (data && data.rates && data.rates.CAD) {
-                cachedExchangeRate = data.rates.CAD;
+                cachedRates.CAD = data.rates.CAD;
+                if(data.rates.CNY) cachedRates.CNY = data.rates.CNY;
+                if(data.rates.HKD) cachedRates.HKD = data.rates.HKD;
                 lastRateFetch = Date.now();
-                console.log('Updated USD/CAD rate:', cachedExchangeRate);
+                console.log('Updated exchange rates:', cachedRates);
             }
         } catch (e) {
-            console.error('Failed to update exchange rate:', e.message);
+            console.error('Failed to update exchange rates:', e.message);
         }
     }
-    return cachedExchangeRate;
+    return cachedRates;
 }
 
-getUsdToCadRate();
+async function getUsdToCadRate() {
+    const rates = await getExchangeRates();
+    return rates.CAD;
+}
+
+getExchangeRates();
 
 app.get('/api/exchange-rate', async (req, res) => {
-    const rate = await getUsdToCadRate();
-    res.json({ usdToCad: rate });
+    const rates = await getExchangeRates();
+    res.json(rates);
 });
 
 app.get('/api/search', async (req, res) => {
@@ -626,6 +633,75 @@ app.post('/sales/add', upload.single('sale_image'), async (req, res) => {
             client.release();
         }
     } catch(e) { console.error('Sale Add Error:', e); }
+    
+    res.redirect('/');
+});
+
+app.post('/sales/bulk-add', upload.single('sale_image'), async (req, res) => {
+    let { item_id, qty, price, shipping_cost, person, person_override } = req.body;
+    
+    // Normalize arrays
+    const givenIds = [].concat(item_id || []).filter(id => id);
+    const givenQtys = [].concat(qty || []).map(q => parseInt(q) || 1);
+    
+    if (givenIds.length === 0) return res.redirect('/');
+    
+    let finalPerson = person === 'Other' ? (person_override || 'Unknown') : (person || 'Unknown');
+    let saleImage = req.file ? '/uploads/' + req.file.filename : null;
+    let netPrice = (parseFloat(price) || 0) - (parseFloat(shipping_cost) || 0);
+    
+    try {
+        const client = await db.connect();
+        try {
+            await client.query('BEGIN');
+            
+            let totalCogsDepleted = 0;
+            let givenLogNames = [];
+            let totalRemainingSold = 0;
+            
+            for(let i = 0; i < givenIds.length; i++) {
+                const id = givenIds[i];
+                let remainingToSell = givenQtys[i];
+                if (remainingToSell <= 0) continue;
+                
+                totalRemainingSold += remainingToSell;
+                
+                const { rows: items } = await client.query('SELECT name FROM inventory WHERE id = $1', [id]);
+                if(items.length > 0) givenLogNames.push(items[0].name);
+                
+                const { rows: lots } = await client.query('SELECT * FROM lots WHERE inventory_id = $1 AND qty > 0 ORDER BY id ASC', [id]);
+                
+                for (let lot of lots) {
+                    if (remainingToSell <= 0) break;
+                    if (lot.qty >= remainingToSell) {
+                        totalCogsDepleted += remainingToSell * parseFloat(lot.cog || 0);
+                        await client.query('UPDATE lots SET qty = $1 WHERE id = $2', [lot.qty - remainingToSell, lot.id]);
+                        remainingToSell = 0; 
+                    } else {
+                        totalCogsDepleted += lot.qty * parseFloat(lot.cog || 0);
+                        remainingToSell -= lot.qty;
+                        await client.query('UPDATE lots SET qty = 0 WHERE id = $1', [lot.id]);
+                    }
+                }
+            }
+            
+            if (totalRemainingSold > 0) {
+                let saleDesc = givenLogNames.length > 3 ? `Multi Sale: ${givenLogNames.slice(0, 3).join(', ')} and ${givenLogNames.length - 3} more` : `Multi Sale: ${givenLogNames.join(', ')}`;
+                if (givenLogNames.length === 1) saleDesc = givenLogNames[0]; // fallback
+                
+                await client.query('INSERT INTO sales (item_id, item_name, qty, total_price, type, date, person, cogs_sold, image) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)', [
+                    givenIds[0] || null, saleDesc, totalRemainingSold, netPrice, 'Sale', new Date().toISOString(), finalPerson, totalCogsDepleted, saleImage
+                ]);
+            }
+
+            await client.query('COMMIT');
+        } catch(e) {
+            await client.query('ROLLBACK');
+            throw e;
+        } finally {
+            client.release();
+        }
+    } catch(e) { console.error('Bulk Sale Add Error:', e); }
     
     res.redirect('/');
 });

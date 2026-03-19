@@ -20,9 +20,10 @@
     <!-- Stats Carousel/Grid -->
     <% 
       const totalCogs = inventory.reduce((sum, item) => sum + item.lots.reduce((q, l) => q + (l.qty * l.cog), 0), 0);
+      const strictShippingTotal = (typeof totalShipping !== 'undefined') ? totalShipping : 0;
       const margin = totalValue - totalCogs;
     %>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 lg:gap-6">
       <div class="card bg-base-100 shadow-sm border border-base-200/50 hover:border-primary/50 transition-colors">
         <div class="card-body p-5 lg:p-6">
           <div class="flex justify-between items-start">
@@ -67,6 +68,21 @@
           </div>
         </div>
       </div>
+      <div class="card bg-base-100 shadow-sm border border-base-200/50 hover:border-warning/50 transition-colors">
+        <div class="card-body p-5 lg:p-6">
+          <div class="flex justify-between items-start">
+            <h2 class="card-title text-[11px] font-bold text-base-content/60 uppercase tracking-wider">Shipping Paid</h2>
+            <div class="p-2 bg-warning/10 rounded-lg text-warning">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+            </div>
+          </div>
+          <p class="text-3xl font-black mt-2 bg-gradient-to-br from-base-content to-base-content/70 bg-clip-text text-transparent">$<%= strictShippingTotal.toFixed(2) %></p>
+          <div class="text-xs mt-3 flex items-center gap-1 text-base-content/50 font-medium whitespace-nowrap">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <span>Tracking Logs</span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Charts Section -->
@@ -104,11 +120,11 @@
         </div>
         <span class="font-semibold text-sm">Bulk Sale</span>
       </button>
-      <button onclick="document.getElementById('import_modal').showModal()" class="btn h-28 flex flex-col gap-3 justify-center border border-base-300 hover:border-accent/50 hover:bg-accent/5 transition-all shadow-sm rounded-2xl group">
+      <button onclick="document.getElementById('apply_shipping_modal').showModal()" class="btn h-28 flex flex-col gap-3 justify-center border border-base-300 hover:border-accent/50 hover:bg-accent/5 transition-all shadow-sm rounded-2xl group">
         <div class="p-3 bg-base-200 rounded-full group-hover:bg-accent group-hover:text-accent-content transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4m16 0l-4-4m4 4l-4 4"/></svg>
         </div>
-        <span class="font-semibold text-sm">Import Setup</span>
+        <span class="font-semibold text-sm">Log Shipment</span>
       </button>
       <button class="btn h-28 flex flex-col gap-3 justify-center border border-base-300 hover:border-neutral/50 hover:bg-neutral/5 transition-all shadow-sm rounded-2xl group">
         <div class="p-3 bg-base-200 rounded-full group-hover:bg-neutral group-hover:text-neutral-content transition-colors">

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PokéInventory</title>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.10.1/dist/full.min.css" rel="stylesheet" type="text/css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="manifest" href="/manifest.json">
+</head>
+<body class="bg-base-200 text-base-content min-h-screen relative">
+<style>
+  body.mobile-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #0f172a;
+    padding: 2rem;
+  }
+  body.mobile-preview .drawer {
+    width: 390px;
+    height: 844px;
+    max-height: 90vh;
+    border: 12px solid #1e293b;
+    border-radius: 3rem;
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+    overflow: hidden;
+    position: relative;
+    background-color: var(--fallback-b1,oklch(var(--b1)/1));
+    flex: none;
+  }
+  body.mobile-preview .drawer-side { display: none !important; }
+  body.mobile-preview .drawer-content { 
+    height: 100%; 
+    padding-bottom: 4rem; 
+  }
+  body.mobile-preview .navbar { display: flex !important; }
+  body.mobile-preview .btm-nav { position: absolute; display: flex !important; }
+</style>
+
+<button onclick="toggleMobilePreview()" id="exit-preview-btn" class="hidden fixed top-4 right-4 btn btn-accent shadow-xl z-[100] rounded-full font-bold">
+  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg> Desktop View
+</button>
+<script>
+  function toggleMobilePreview() {
+    const isPreview = document.body.classList.toggle('mobile-preview');
+    const drawer = document.querySelector('.drawer');
+    const btmNav = document.querySelector('.btm-nav');
+    if (isPreview) {
+      drawer.classList.remove('lg:drawer-open');
+      document.getElementById('exit-preview-btn').classList.remove('hidden');
+    } else {
+      drawer.classList.add('lg:drawer-open');
+      document.getElementById('exit-preview-btn').classList.add('hidden');
+    }
+  }
+</script>
+
+<div class="drawer lg:drawer-open h-screen">
+  <input id="main-drawer" type="checkbox" class="drawer-toggle" />
+  
+  <div class="drawer-content flex flex-col h-screen overflow-y-auto pb-16 lg:pb-0">
+    <!-- Navbar (Mobile Top) -->
+    <div class="navbar bg-base-100 shadow-sm sticky top-0 z-40 lg:hidden">
+      <div class="flex-none">
+        <label for="main-drawer" aria-label="open sidebar" class="btn btn-square btn-ghost">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-5 h-5 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+        </label>
+      </div>
+      <div class="flex-1">
+        <a class="btn btn-ghost text-xl">PokéInventory</a>
+      </div>
+      <div class="flex-none">
+        <button class="btn btn-ghost btn-circle">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+        </button>
+      </div>
+    </div>

@@ -1,0 +1,245 @@
+<%- include('partials/header') %>
+
+<main class="flex-1 p-4 lg:p-8 w-full max-w-7xl mx-auto">
+  <div class="flex flex-col gap-6">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <h1 class="text-3xl font-extrabold tracking-tight">Dashboard Overview</h1>
+      <div class="flex items-center gap-2">
+        <form method="GET" action="/" class="flex items-center gap-2">
+          <select name="range" class="select select-bordered select-sm rounded-full bg-base-100 shadow-sm" onchange="this.form.submit()">
+            <option value="7" <%= range === '7' ? 'selected' : '' %>>Last 7 Days</option>
+            <option value="30" <%= (range === '30' || !range) ? 'selected' : '' %>>Last 30 Days</option>
+            <option value="90" <%= range === '90' ? 'selected' : '' %>>Last 90 Days</option>
+            <option value="all" <%= range === 'all' ? 'selected' : '' %>>All Time</option>
+          </select>
+        </form>
+        <button class="btn btn-primary btn-sm rounded-full px-6 shadow-lg shadow-primary/30">Sync Prices</button>
+      </div>
+    </div>
+
+    <!-- Stats Carousel/Grid -->
+    <% 
+      const totalCogs = inventory.reduce((sum, item) => sum + item.lots.reduce((q, l) => q + (l.qty * l.cog), 0), 0);
+      const margin = totalValue - totalCogs;
+    %>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
+      <div class="card bg-base-100 shadow-sm border border-base-200/50 hover:border-primary/50 transition-colors">
+        <div class="card-body p-5 lg:p-6">
+          <div class="flex justify-between items-start">
+            <h2 class="card-title text-sm font-medium text-base-content/60 uppercase tracking-wider">Total Value</h2>
+            <div class="p-2 bg-primary/10 rounded-lg text-primary">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            </div>
+          </div>
+          <p class="text-3xl font-black mt-2 bg-gradient-to-br from-base-content to-base-content/70 bg-clip-text text-transparent">$<%= totalValue.toFixed(2) %></p>
+          <div class="text-xs mt-3 flex items-center gap-1 text-base-content/50 font-medium">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+            <span>Current Estimate</span>
+          </div>
+        </div>
+      </div>
+      <div class="card bg-base-100 shadow-sm border border-base-200/50 hover:border-secondary/50 transition-colors">
+        <div class="card-body p-5 lg:p-6">
+          <div class="flex justify-between items-start">
+            <h2 class="card-title text-sm font-medium text-base-content/60 uppercase tracking-wider">Net Sales (<%= range === 'all' ? 'All' : range + 'd' %>)</h2>
+            <div class="p-2 bg-secondary/10 rounded-lg text-secondary">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+            </div>
+          </div>
+          <p class="text-3xl font-black mt-2 bg-gradient-to-br from-base-content to-base-content/70 bg-clip-text text-transparent">$<%= sales.reduce((a, b) => a + b.total_price, 0).toFixed(2) %></p>
+          <div class="text-xs mt-3 flex items-center gap-1 text-success font-medium">
+            <span>Range Selected</span>
+          </div>
+        </div>
+      </div>
+      <div class="card bg-base-100 shadow-sm border border-base-200/50 hover:border-accent/50 transition-colors">
+        <div class="card-body p-5 lg:p-6">
+          <div class="flex justify-between items-start">
+            <h2 class="card-title text-sm font-medium text-base-content/60 uppercase tracking-wider">Est. Margin</h2>
+            <div class="p-2 bg-accent/10 rounded-lg text-accent">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+            </div>
+          </div>
+          <p class="text-3xl font-black mt-2 bg-gradient-to-br from-base-content to-base-content/70 bg-clip-text text-transparent">$<%= margin.toFixed(2) %></p>
+          <div class="text-xs mt-3 flex items-center gap-1 text-base-content/50 font-medium">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <span>After $<%= totalCogs.toFixed(2) %> total CoG</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+      <div class="card bg-base-100 shadow-sm border border-base-200/50 lg:col-span-2">
+        <div class="card-body p-4 lg:p-6">
+          <h2 class="card-title text-sm font-medium text-base-content/60 uppercase tracking-wider mb-2">Sales Revenue Trend</h2>
+          <div class="h-64 w-full relative">
+            <canvas id="salesChart"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="card bg-base-100 shadow-sm border border-base-200/50">
+        <div class="card-body p-4 lg:p-6 flex flex-col items-center">
+          <h2 class="card-title text-sm font-medium text-base-content/60 uppercase tracking-wider mb-2 w-full text-left">Inventory by Category</h2>
+          <div class="h-64 w-full relative flex items-center justify-center">
+            <canvas id="categoryChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <h2 class="text-xl font-bold mt-2">Quick Actions & Sales</h2>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <button onclick="document.getElementById('record_sale_modal').showModal()" class="btn h-28 flex flex-col gap-3 justify-center border border-base-300 hover:border-primary/50 hover:bg-primary/5 transition-all shadow-sm rounded-2xl group">
+        <div class="p-3 bg-base-200 rounded-full group-hover:bg-primary group-hover:text-primary-content transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+        </div>
+        <span class="font-semibold text-sm">Record Sale</span>
+      </button>
+      <button onclick="document.getElementById('bulk_sale_modal').showModal()" class="btn h-28 flex flex-col gap-3 justify-center border border-base-300 hover:border-secondary/50 hover:bg-secondary/5 transition-all shadow-sm rounded-2xl group">
+        <div class="p-3 bg-base-200 rounded-full group-hover:bg-secondary group-hover:text-secondary-content transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+        </div>
+        <span class="font-semibold text-sm">Bulk Sale</span>
+      </button>
+      <button onclick="document.getElementById('import_modal').showModal()" class="btn h-28 flex flex-col gap-3 justify-center border border-base-300 hover:border-accent/50 hover:bg-accent/5 transition-all shadow-sm rounded-2xl group">
+        <div class="p-3 bg-base-200 rounded-full group-hover:bg-accent group-hover:text-accent-content transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+        </div>
+        <span class="font-semibold text-sm">Import Setup</span>
+      </button>
+      <button class="btn h-28 flex flex-col gap-3 justify-center border border-base-300 hover:border-neutral/50 hover:bg-neutral/5 transition-all shadow-sm rounded-2xl group">
+        <div class="p-3 bg-base-200 rounded-full group-hover:bg-neutral group-hover:text-neutral-content transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        </div>
+        <span class="font-semibold text-sm">View Reports</span>
+      </button>
+    </div>
+    
+    <!-- Recent Activity Placeholder -->
+    <h2 class="text-xl font-bold mt-4">Recent Sales</h2>
+    <div class="card bg-base-100 shadow-sm border border-base-200/60 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="table w-full whitespace-nowrap">
+          <thead>
+            <tr class="bg-base-200/50 text-base-content/70 border-b border-base-200">
+              <th class="font-medium rounded-tl-xl p-4">Item</th>
+              <th class="font-medium p-4">Date</th>
+              <th class="font-medium text-right rounded-tr-xl p-4">Sale Price</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if(typeof sales !== 'undefined' && sales.length > 0) {
+                 sales.slice().reverse().slice(0, 5).forEach(sale => { %>
+            <tr class="hover:bg-base-200/30 transition-colors border-b border-base-200/50">
+              <td class="p-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-full <%= sale.type === 'Trade' ? 'bg-warning/10 text-warning' : 'bg-primary/10 text-primary' %> flex items-center justify-center font-bold text-xs"><%= sale.item_name.charAt(0).toUpperCase() %></div>
+                  <span class="font-medium"><%= sale.item_name %> <span class="badge badge-sm badge-ghost ml-1">x<%= sale.qty %></span></span>
+                </div>
+              </td>
+              <td class="text-base-content/60 text-sm p-4"><%= new Date(sale.date).toLocaleDateString() %></td>
+              <td class="font-bold text-success text-right p-4">
+                <div class="flex flex-col items-end gap-1">
+                  <span>$<%= sale.total_price.toFixed(2) %></span>
+                  <form method="POST" action="/sales/refund">
+                    <input type="hidden" name="sale_id" value="<%= sale.id %>" />
+                    <button type="submit" class="btn btn-xs btn-outline btn-error opacity-50 hover:opacity-100" onclick="return confirm('Refund this transaction and restore stock?')">Undo</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            <% })} else { %>
+            <tr><td colspan="3" class="text-center p-8 text-base-content/50">No recent sales.</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const inventoryData = <%- JSON.stringify(inventory || []) %>;
+  const salesData = <%- JSON.stringify(sales || []) %>;
+  
+  // 1. Sales Trend
+  const salesByDate = {};
+  salesData.forEach(s => {
+      const d = s.date ? new Date(s.date).toISOString().split('T')[0] : 'Unknown';
+      salesByDate[d] = (salesByDate[d] || 0) + (s.total_price || 0);
+  });
+  
+  const sortedDates = Object.keys(salesByDate).sort();
+  
+  const salesCtx = document.getElementById('salesChart').getContext('2d');
+  new Chart(salesCtx, {
+      type: 'line',
+      data: {
+          labels: sortedDates.length ? sortedDates : ['No Data'],
+          datasets: [{
+              label: 'Daily Revenue (CAD)',
+              data: sortedDates.length ? sortedDates.map(d => salesByDate[d]) : [0],
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.2)',
+              borderWidth: 3,
+              tension: 0.4,
+              fill: true,
+              pointRadius: 4,
+              pointBackgroundColor: '#10b981'
+          }]
+      },
+      options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+              y: { beginAtZero: true, grid: { color: 'rgba(160, 160, 160, 0.1)' } },
+              x: { grid: { display: false } }
+          }
+      }
+  });
+
+  // 2. Category Donut
+  const setValues = {};
+  inventoryData.forEach(item => {
+      const val = (item.market_price || 0) * (item.lots || []).reduce((q, l) => q + (l.qty||0), 0);
+      const catName = item.category || 'Singles/Unknown';
+      setValues[catName] = (setValues[catName] || 0) + val;
+  });
+  
+  const setLabels = Object.keys(setValues).sort((a,b) => setValues[b] - setValues[a]).slice(0, 5);
+  let otherVal = 0;
+  Object.keys(setValues).sort((a,b) => setValues[b] - setValues[a]).slice(5).forEach(k => { otherVal += setValues[k]; });
+  if (otherVal > 0) { setLabels.push('Other'); setValues['Other'] = otherVal; }
+  
+  const setChartData = setLabels.map(l => setValues[l]);
+
+  const catCtx = document.getElementById('categoryChart').getContext('2d');
+  new Chart(catCtx, {
+      type: 'doughnut',
+      data: {
+          labels: setLabels.length ? setLabels : ['No Data'],
+          datasets: [{
+              data: setChartData.length ? setChartData : [1],
+              backgroundColor: ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#6b7280'],
+              borderWidth: 0,
+              hoverOffset: 4
+          }]
+      },
+      options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '65%',
+          plugins: {
+              legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, font: {size: 11} } }
+          }
+      }
+  });
+</script>
+
+<%- include('partials/footer') %>

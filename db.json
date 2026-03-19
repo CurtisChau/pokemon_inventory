@@ -1,0 +1,129 @@
+{
+  "inventory": [
+    {
+      "id": 1,
+      "name": "Charizard",
+      "set": "Vivid Voltage",
+      "condition": "Near Mint",
+      "image": "https://images.pokemontcg.io/swsh4/44_hires.png",
+      "lots": [
+        {
+          "qty": 1,
+          "cog": 40,
+          "date": "2026-03-18T07:20:44.399Z"
+        },
+        {
+          "qty": 2,
+          "cog": 35,
+          "date": "2026-03-18T07:20:44.400Z"
+        }
+      ],
+      "market_price": 65
+    },
+    {
+      "id": 2,
+      "name": "Pikachu",
+      "set": "Pokemon GO",
+      "condition": "Common",
+      "image": "https://images.pokemontcg.io/pgo/23_hires.png",
+      "lots": [
+        {
+          "qty": 20,
+          "cog": 0.1,
+          "date": "2026-03-18T07:20:44.400Z"
+        }
+      ],
+      "market_price": 0.5
+    },
+    {
+      "id": 1773818766279,
+      "name": "gem pack",
+      "set": "Custom",
+      "condition": "Near Mint",
+      "data_source": "tcgplayer",
+      "image": "",
+      "lots": [
+        {
+          "qty": 2,
+          "cog": 86,
+          "date": "2026-03-18T07:26:06.279Z"
+        },
+        {
+          "qty": 1,
+          "cog": 10,
+          "date": "2026-03-18T07:26:39.067Z"
+        }
+      ],
+      "market_price": 129
+    },
+    {
+      "id": 1773820511695,
+      "name": "Mew",
+      "set": "Southern Islands",
+      "condition": "Near Mint",
+      "data_source": "tcgplayer",
+      "image": "https://images.pokemontcg.io/si1/1.png",
+      "tcgplayer_url": "https://prices.pokemontcg.io/tcgplayer/si1-1",
+      "lots": [
+        {
+          "qty": 1,
+          "cog": 20,
+          "date": "2026-03-18T07:55:11.695Z"
+        }
+      ],
+      "market_price": 331.81
+    },
+    {
+      "id": 1773844355088,
+      "name": "Elite Trainer Box",
+      "set": "Pokemon Ascended Heroes",
+      "condition": "Sealed",
+      "data_source": "pricecharting",
+      "image": "https://storage.googleapis.com/images.pricecharting.com/3bzbjxje4gybk37w/240.jpg",
+      "tcgplayer_url": "https://www.pricecharting.com/game/undefined/11748902",
+      "lots": [
+        {
+          "qty": 1,
+          "cog": 85,
+          "date": "2026-03-18T14:32:35.088Z"
+        },
+        {
+          "qty": 1,
+          "cog": 100,
+          "date": "2026-03-18T15:56:32.648Z"
+        }
+      ],
+      "market_price": 151.65
+    }
+  ],
+  "sales": [
+    {
+      "id": 1,
+      "item_id": 1,
+      "item_name": "Charizard (Vivid Voltage)",
+      "qty": 1,
+      "total_price": 65,
+      "type": "Sale",
+      "date": "2026-03-18T07:20:44.400Z"
+    },
+    {
+      "id": 1773818495575,
+      "item_id": 1,
+      "item_name": "Charizard",
+      "qty": 1,
+      "total_price": 1200,
+      "type": "Sale",
+      "date": "2026-03-18T07:21:35.575Z"
+    },
+    {
+      "id": 1773819982256,
+      "item_id": 1,
+      "item_name": "Charizard",
+      "qty": 1,
+      "total_price": 10000,
+      "type": "Sale",
+      "date": "2026-03-18T07:46:22.256Z"
+    }
+  ],
+  "trades": []
+}

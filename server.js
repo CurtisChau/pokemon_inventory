@@ -1,11 +1,33 @@
 const express = require('express');
+const axios = require('axios');
+const http = require('http');
+const https = require('https');
+
+const axiosInstance = axios.create({
+    httpAgent: new http.Agent({ family: 4 }),
+    httpsAgent: new https.Agent({ family: 4 })
+});
+
 const fetchWithTimeout = async (url, options = {}) => {
-    const { timeout = 8000, ...fetchOptions } = options;
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeout);
-    const response = await fetch(url, { ...fetchOptions, signal: controller.signal });
-    clearTimeout(id);
-    return response;
+    const { timeout = 8000, headers = {}, ...fetchOptions } = options;
+    try {
+        const response = await axiosInstance({
+            url,
+            headers,
+            ...fetchOptions,
+            timeout
+        });
+        return {
+            json: async () => response.data,
+            status: response.status,
+            ok: response.status >= 200 && response.status < 300
+        };
+    } catch (e) {
+        if (e.code === 'ECONNABORTED') {
+            throw new Error('The operation was aborted');
+        }
+        throw e;
+    }
 };
 const multer = require('multer');
 const csv = require('csv-parser');
@@ -166,13 +188,12 @@ app.get('/api/search', async (req, res) => {
         const cleanQ = q.replace(/\[.*?\]|\(.*?\)/g, "").trim();
         
         const rate = await getUsdToCadRate();
-        const urlObj = new URL('https://api.pokemontcg.io/v2/cards');
-        urlObj.searchParams.append('q', `name:"${cleanQ}*"`);
-        urlObj.searchParams.append('pageSize', '25');
-        console.log('EXPRESS TRACE FETCH URL:', urlObj.toString());
-        const response = await fetchWithTimeout(urlObj.toString(), {
+        const rawQ = `name:"${cleanQ}"`;
+        const urlStr = `https://api.pokemontcg.io/v2/cards?q=${rawQ}&pageSize=25`;
+        console.log('EXPRESS TRACE FETCH URL:', urlStr);
+        const response = await fetchWithTimeout(urlStr, {
             headers: { 'User-Agent': 'Mozilla/5.0' },
-            timeout: 12000
+            timeout: 20000
         });
         const data = await response.json();
         
@@ -376,12 +397,10 @@ async function triggerBackgroundTcgplayerSync(rows) {
                     
                     // Attempt 1: TCGPlayer Exact
                     const qExact = `name:"${cleanName}"${cleanSet && cleanSet !== 'Custom' && cleanSet !== 'Unknown' ? ` set.name:"*${cleanSet}*"` : ''}`;
-                    let tcgUrl1 = new URL('https://api.pokemontcg.io/v2/cards');
-                    tcgUrl1.searchParams.append('q', qExact);
-                    tcgUrl1.searchParams.append('pageSize', '1');
+                    let tcgUrl1 = `https://api.pokemontcg.io/v2/cards?q=${qExact}&pageSize=1`;
                     
                     try {
-                        let res = await fetchWithTimeout(tcgUrl1.toString(), { headers: { 'User-Agent': 'Mozilla/5.0' } });
+                        let res = await fetchWithTimeout(tcgUrl1, { headers: { 'User-Agent': 'Mozilla/5.0' } });
                         let data = await res.json();
                         if (data && data.data && data.data.length > 0) {
                             foundImg = data.data[0].images?.small || '';
@@ -394,11 +413,9 @@ async function triggerBackgroundTcgplayerSync(rows) {
                     if (!foundImg) {
                         try {
                             const firstWord = cleanName.split(' ')[0].replace(/[^a-zA-Z0-9]/g, '');
-                            const qFuzzy = `name:"*${firstWord}*"`;
-                            let tcgUrl2 = new URL('https://api.pokemontcg.io/v2/cards');
-                            tcgUrl2.searchParams.append('q', qFuzzy);
-                            tcgUrl2.searchParams.append('pageSize', '25'); 
-                            let res2 = await fetchWithTimeout(tcgUrl2.toString(), { headers: { 'User-Agent': 'Mozilla/5.0' } });
+                            const qFuzzy = `name:"${firstWord}"`;
+                            let tcgUrl2 = `https://api.pokemontcg.io/v2/cards?q=${qFuzzy}&pageSize=25`;
+                            let res2 = await fetchWithTimeout(tcgUrl2, { headers: { 'User-Agent': 'Mozilla/5.0' } });
                             let data2 = await res2.json();
                             if (data2 && data2.data && data2.data.length > 0) {
                                 // Find best match manually by checking if the name is contained

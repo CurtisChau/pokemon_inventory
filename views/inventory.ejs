@@ -39,11 +39,25 @@
           </tr>
         </thead>
         <tbody>
-          <% inventory.forEach(item => { 
-             let totalQty = item.lots.reduce((sum, l) => sum + l.qty, 0);
-             if (totalQty === 0) return;
-             let avgCog = item.lots.reduce((sum, l) => sum + (l.cog * l.qty), 0) / totalQty;
+          <% 
+             const groupedList = {};
+             inventory.forEach(item => { 
+                let totalQty = item.lots.reduce((sum, l) => sum + l.qty, 0);
+                if (totalQty === 0) return;
+                const cat = item.category || 'Uncategorized';
+                if(!groupedList[cat]) groupedList[cat] = [];
+                item.totalQty = totalQty;
+                item.avgCog = item.lots.reduce((sum, l) => sum + (l.cog * l.qty), 0) / totalQty;
+                groupedList[cat].push(item);
+             });
+             
+             const catOrder = { 'Sealed': 1, 'Singles': 2, 'Graded': 3, 'Accessories': 4 };
+             Object.keys(groupedList).sort((a, b) => (catOrder[a] || 99) - (catOrder[b] || 99)).forEach(category => { 
           %>
+          <tr class="bg-base-200/50 border-b border-base-200">
+            <td colspan="6" class="p-2 pl-6 font-black text-primary uppercase tracking-widest text-xs"><%= category %></td>
+          </tr>
+          <% groupedList[category].forEach(item => { %>
           <tr class="hover:bg-base-200/30 transition-colors">
             <td class="p-4 pl-6">
               <div class="flex items-center gap-4">
@@ -61,10 +75,10 @@
             <td class="p-4">
               <span class="badge badge-ghost badge-sm text-xs border-base-300"><%= item.set %></span>
             </td>
-            <td class="p-4 text-right font-medium"><%= totalQty %></td>
+            <td class="p-4 text-right font-medium"><%= item.totalQty %></td>
             <td class="p-4 text-right text-base-content/70 text-sm">
                 <div class="tooltip" data-tip="Lots: <%= item.lots.map(l => l.qty + ' @ $' + l.cog).join(', ') %>">
-                  $<%= avgCog.toFixed(2) %> (Avg)
+                  $<%= item.avgCog.toFixed(2) %> (Avg)
                 </div>
             </td>
             <td class="p-4 text-right text-success font-bold tracking-tight"><%- item.market_price !== null ? '$' + item.market_price.toFixed(2) : '<span class="text-base-content/50 italic text-xs font-normal">N/A</span>' %></td>
@@ -72,50 +86,71 @@
                <% if(item.tcgplayer_url) { %>
                  <a href="<%= item.tcgplayer_url %>" target="_blank" class="btn btn-xs btn-ghost text-info hover:bg-info/10 tooltip tooltip-left" data-tip="View on TCGPlayer"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg></a>
                <% } %>
-               <button class="btn btn-sm btn-ghost text-secondary hover:bg-secondary/10 rounded-lg font-medium" onclick="openEditModal(this)" data-item="<%= Buffer.from(JSON.stringify({ ...item, lots: undefined, totalQty, avgCog: Number(avgCog.toFixed(2)) })).toString('base64') %>">Edit</button>
+               <button class="btn btn-sm btn-ghost text-secondary hover:bg-secondary/10 rounded-lg font-medium" onclick="openEditModal(this)" data-item="<%= Buffer.from(JSON.stringify({ ...item, lots: undefined, totalQty: item.totalQty, avgCog: Number(item.avgCog.toFixed(2)) })).toString('base64') %>">Edit</button>
                <button class="btn btn-sm btn-ghost text-primary hover:bg-primary/10 rounded-lg font-medium" onclick="document.getElementById('record_sale_modal').showModal(); document.querySelector('#record_sale_modal select[name=\'item_id\']').value='<%= item.id %>'">Quick Sell</button>
             </td>
           </tr>
-          <% }) %>
+          <% }) }) %>
         </tbody>
       </table>
     </div>
     <% } else { %>
     <!-- Card View -->
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-6">
-      <% inventory.forEach(item => { 
-         let totalQty = item.lots.reduce((sum, l) => sum + l.qty, 0);
-         if (totalQty === 0) return;
-         let avgCog = item.lots.reduce((sum, l) => sum + (l.cog * l.qty), 0) / totalQty;
+    <div class="flex flex-col gap-8 w-full">
+      <% 
+         const groupedCard = {};
+         inventory.forEach(item => { 
+            let totalQty = item.lots.reduce((sum, l) => sum + l.qty, 0);
+            if (totalQty === 0) return;
+            const cat = item.category || 'Uncategorized';
+            if(!groupedCard[cat]) groupedCard[cat] = [];
+            item.totalQty = totalQty;
+            item.avgCog = item.lots.reduce((sum, l) => sum + (l.cog * l.qty), 0) / totalQty;
+            groupedCard[cat].push(item);
+         });
+         
+         const catOrder = { 'Sealed': 1, 'Singles': 2, 'Graded': 3, 'Accessories': 4 };
+         Object.keys(groupedCard).sort((a, b) => (catOrder[a] || 99) - (catOrder[b] || 99)).forEach(category => { 
       %>
-      <div class="card bg-base-100 shadow-sm border border-base-200/60 overflow-hidden group hover:shadow-md hover:border-primary/30 transition-all duration-300">
-        <figure class="px-4 pt-5 pb-2 relative flex items-center justify-center h-52 bg-gradient-to-b from-base-200/50 to-transparent">
-          <% if(item.image) { %><img src="<%= item.image %>" alt="<%= item.name %>" class="rounded-xl drop-shadow-lg h-full object-contain group-hover:scale-105 transition-transform duration-500" /><% } else { %><div class="text-6xl font-black text-primary opacity-30"><%= item.name.charAt(0) %></div><% } %>
-          <div class="absolute top-4 right-4 badge badge-primary font-bold shadow-md border-none">x<%= totalQty %></div>
-        </figure>
-        <div class="card-body p-4 pt-2 flex justify-end">
-          <div class="text-center">
-            <h2 class="font-bold text-sm text-base-content truncate"><%= item.name %></h2>
-            <p class="text-[11px] text-base-content/50 truncate mt-0.5 uppercase tracking-wide"><%= item.set %></p>
-          </div>
-          <div class="divider my-1 opacity-50"></div>
-          <div class="flex justify-between items-end mt-1">
-            <div class="flex flex-col tooltip" data-tip="Lots: <%= item.lots.map(l => l.qty + ' @ $' + l.cog).join(', ') %>">
-              <span class="text-[10px] text-base-content/50 uppercase font-medium cursor-help border-b border-dashed border-base-content/30">Est. CoG</span>
-              <span class="text-xs font-semibold opacity-80">$<%= avgCog.toFixed(2) %></span>
+      <!-- Category Block -->
+      <div class="w-full">
+        <div class="flex items-center gap-4 mb-4">
+           <h2 class="text-xl font-black text-primary uppercase tracking-widest"><%= category %></h2>
+           <div class="h-px bg-base-300 flex-1"></div>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-6 w-full">
+          <% groupedCard[category].forEach(item => { %>
+          <div class="card bg-base-100 shadow-sm border border-base-200/60 overflow-hidden group hover:shadow-md hover:border-primary/30 transition-all duration-300">
+            <figure class="px-4 pt-5 pb-2 relative flex items-center justify-center h-52 bg-gradient-to-b from-base-200/50 to-transparent">
+              <% if(item.image) { %><img src="<%= item.image %>" alt="<%= item.name %>" class="rounded-xl drop-shadow-lg h-full object-contain group-hover:scale-105 transition-transform duration-500" /><% } else { %><div class="text-6xl font-black text-primary opacity-30"><%= item.name.charAt(0) %></div><% } %>
+              <div class="absolute top-4 right-4 badge badge-primary font-bold shadow-md border-none">x<%= item.totalQty %></div>
+            </figure>
+            <div class="card-body p-4 pt-2 flex justify-end">
+              <div class="text-center">
+                <h2 class="font-bold text-sm text-base-content truncate"><%= item.name %></h2>
+                <p class="text-[11px] text-base-content/50 truncate mt-0.5 uppercase tracking-wide"><%= item.set %></p>
+              </div>
+              <div class="divider my-1 opacity-50"></div>
+              <div class="flex justify-between items-end mt-1">
+                <div class="flex flex-col tooltip" data-tip="Lots: <%= item.lots.map(l => l.qty + ' @ $' + l.cog).join(', ') %>">
+                  <span class="text-[10px] text-base-content/50 uppercase font-medium cursor-help border-b border-dashed border-base-content/30">Est. CoG</span>
+                  <span class="text-xs font-semibold opacity-80">$<%= item.avgCog.toFixed(2) %></span>
+                </div>
+                <div class="flex flex-col items-end">
+                  <span class="text-[10px] text-base-content/50 uppercase font-medium">Market</span>
+                  <span class="text-sm font-black text-success tracking-tight"><%- item.market_price !== null ? '$' + item.market_price.toFixed(2) : '<span class="text-base-content/50 italic font-normal">N/A</span>' %></span>
+                </div>
+              </div>
+              <div class="flex gap-2 w-full mt-3 opacity-0 group-hover:opacity-100 transition-opacity hidden lg:flex">
+                 <% if(item.tcgplayer_url) { %>
+                    <a href="<%= item.tcgplayer_url %>" target="_blank" class="btn btn-sm btn-outline btn-info flex-1 tooltip" data-tip="Open TCGPlayer"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg></a>
+                 <% } %>
+                 <button class="btn btn-secondary btn-outline btn-sm shadow-sm rounded-lg" onclick="openEditModal(this)" data-item="<%= Buffer.from(JSON.stringify({ ...item, lots: undefined, totalQty: item.totalQty, avgCog: Number(item.avgCog.toFixed(2)) })).toString('base64') %>">Edit</button>
+                 <button class="btn btn-primary btn-sm flex-[3] rounded-lg shadow-primary/20 shadow-lg" onclick="document.getElementById('record_sale_modal').showModal(); document.querySelector('#record_sale_modal select[name=\'item_id\']').value='<%= item.id %>'">Quick Sell</button>
+              </div>
             </div>
-            <div class="flex flex-col items-end">
-              <span class="text-[10px] text-base-content/50 uppercase font-medium">Market</span>
-              <span class="text-sm font-black text-success tracking-tight"><%- item.market_price !== null ? '$' + item.market_price.toFixed(2) : '<span class="text-base-content/50 italic font-normal">N/A</span>' %></span>
-            </div>
           </div>
-          <div class="flex gap-2 w-full mt-3 opacity-0 group-hover:opacity-100 transition-opacity hidden lg:flex">
-             <% if(item.tcgplayer_url) { %>
-                <a href="<%= item.tcgplayer_url %>" target="_blank" class="btn btn-sm btn-outline btn-info flex-1 tooltip" data-tip="Open TCGPlayer"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg></a>
-             <% } %>
-             <button class="btn btn-secondary btn-outline btn-sm shadow-sm rounded-lg" onclick="openEditModal(this)" data-item="<%= Buffer.from(JSON.stringify({ ...item, lots: undefined, totalQty, avgCog: Number(avgCog.toFixed(2)) })).toString('base64') %>">Edit</button>
-             <button class="btn btn-primary btn-sm flex-[3] rounded-lg shadow-primary/20 shadow-lg" onclick="document.getElementById('record_sale_modal').showModal(); document.querySelector('#record_sale_modal select[name=\'item_id\']').value='<%= item.id %>'">Quick Sell</button>
-          </div>
+          <% }) %>
         </div>
       </div>
       <% }) %>

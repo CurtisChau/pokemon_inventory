@@ -33,20 +33,36 @@ app.get('/', async (req, res) => {
     try {
         const inventory = await readHydratedInventory();
         const { rows: sales } = await db.query('SELECT * FROM sales ORDER BY id DESC');
-        const { rows: shipping } = await db.query('SELECT SUM(cost) as total FROM shipping_logs');
+        const { rows: shipping } = await db.query('SELECT * FROM shipping_logs ORDER BY id DESC');
+        
+        // Extract unique persons for filter dropdown
+        const persons = [...new Set(sales.map(s => s.person).filter(p => p && p.trim() !== 'Unknown' && p.trim() !== ''))];
+        const selectedPerson = req.query.person || 'all';
+        
+        let activity = [];
+        sales.forEach(s => activity.push({ ...s, log_type: 'sale' }));
+        shipping.forEach(s => activity.push({ ...s, log_type: 'shipping' }));
+        activity.sort((a, b) => new Date(b.date) - new Date(a.date));
         
         let range = req.query.range || '30';
+        let filteredActivity = activity;
         let filteredSales = sales;
+        // Apply Filters
         if (range !== 'all') {
             const rangeDate = new Date();
             rangeDate.setDate(rangeDate.getDate() - parseInt(range));
-            filteredSales = sales.filter(s => new Date(s.date) >= rangeDate);
+            filteredActivity = filteredActivity.filter(s => new Date(s.date) >= rangeDate);
+            filteredSales = filteredSales.filter(s => new Date(s.date) >= rangeDate);
+        }
+        if (selectedPerson !== 'all') {
+            filteredActivity = filteredActivity.filter(s => s.log_type === 'shipping' || s.person === selectedPerson);
+            filteredSales = filteredSales.filter(s => s.person === selectedPerson);
         }
         
         const totalValue = inventory.reduce((sum, item) => sum + ((item.market_price || 0) * item.lots.reduce((q, l) => q + l.qty, 0)), 0);
-        const totalShipping = shipping.length ? (parseFloat(shipping[0].total) || 0) : 0;
+        const totalShipping = shipping.reduce((sum, s) => sum + (parseFloat(s.cost) || 0), 0);
         
-        res.render('dashboard', { inventory, sales: filteredSales, range, totalValue, totalShipping, currentPath: '/' });
+        res.render('dashboard', { inventory, activity: filteredActivity, sales: filteredSales, persons, selectedPerson, range, totalValue, totalShipping, currentPath: '/' });
     } catch(e) { console.error('Dashboard Error:', e); res.send('Error loading dashboard'); }
 });
 
@@ -64,8 +80,6 @@ app.post('/shipping/apply', async (req, res) => {
         try {
             await client.query('BEGIN');
             
-            await client.query('INSERT INTO shipping_logs (cost, date) VALUES ($1, $2)', [costFloat, new Date().toISOString()]);
-            
             let totalQty = 0;
             const latestLots = [];
             for (let itemId of itemIds) {
@@ -76,12 +90,16 @@ app.post('/shipping/apply', async (req, res) => {
                 }
             }
             
+            const impacts = [];
             if (totalQty > 0) {
                 const addPerUnit = costFloat / totalQty;
                 for (let lotId of latestLots) {
                     await client.query('UPDATE lots SET cog = cog + $1 WHERE id = $2', [addPerUnit, lotId]);
+                    impacts.push({ lotId, amount: addPerUnit });
                 }
             }
+            
+            await client.query('INSERT INTO shipping_logs (cost, impacts, date) VALUES ($1, $2, $3)', [costFloat, JSON.stringify(impacts), new Date().toISOString()]);
             
             await client.query('COMMIT');
         } catch(err) {
@@ -205,10 +223,7 @@ app.post('/inventory/bulk-shipment', async (req, res) => {
         try {
             await client.query('BEGIN');
             
-            if (floatShipping > 0) {
-               await client.query('INSERT INTO shipping_logs (cost, date) VALUES ($1, $2)', [floatShipping, new Date().toISOString()]);
-            }
-            
+            const impacts = [];
             for (let item of items) {
                 const { rows } = await client.query('SELECT id FROM inventory WHERE lower(name) = $1 AND set_name = $2', [item.name.toLowerCase(), item.set_name || 'Custom']);
                 const existingItem = rows[0];
@@ -216,14 +231,20 @@ app.post('/inventory/bulk-shipment', async (req, res) => {
                 const finalUnitCog = parseFloat(item.unit_cog || 0) + distributedShipping;
                 
                 if (existingItem) {
-                    await client.query('INSERT INTO lots (inventory_id, qty, cog, date) VALUES ($1, $2, $3, $4)', [existingItem.id, parseInt(item.qty || 1), finalUnitCog, new Date().toISOString()]);
+                    const { rows: lr } = await client.query('INSERT INTO lots (inventory_id, qty, cog, date) VALUES ($1, $2, $3, $4) RETURNING id', [existingItem.id, parseInt(item.qty || 1), finalUnitCog, new Date().toISOString()]);
+                    if (distributedShipping > 0) impacts.push({ lotId: lr[0].id, amount: distributedShipping });
                 } else {
                     const { rows: ir } = await client.query(
                         `INSERT INTO inventory (name, set_name, condition, data_source, image, tcgplayer_url, market_price, category) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
                         [item.name, item.set_name, item.condition, item.data_source, item.image, item.tcgplayer_url, item.market_price, item.category]
                     );
-                    await client.query('INSERT INTO lots (inventory_id, qty, cog, date) VALUES ($1, $2, $3, $4)', [ir[0].id, parseInt(item.qty || 1), finalUnitCog, new Date().toISOString()]);
+                    const { rows: lr } = await client.query('INSERT INTO lots (inventory_id, qty, cog, date) VALUES ($1, $2, $3, $4) RETURNING id', [ir[0].id, parseInt(item.qty || 1), finalUnitCog, new Date().toISOString()]);
+                    if (distributedShipping > 0) impacts.push({ lotId: lr[0].id, amount: distributedShipping });
                 }
+            }
+            
+            if (floatShipping > 0) {
+               await client.query('INSERT INTO shipping_logs (cost, impacts, date) VALUES ($1, $2, $3)', [floatShipping, JSON.stringify(impacts), new Date().toISOString()]);
             }
             
             await client.query('COMMIT');
@@ -290,7 +311,7 @@ app.post('/inventory/add', upload.single('image_upload'), async (req, res) => {
 });
 
 app.post('/sales/add', async (req, res) => {
-    const { item_id, qty, price, shipping_cost } = req.body;
+    const { item_id, qty, price, shipping_cost, person } = req.body;
     if(!item_id || !qty) return res.redirect('/');
     
     try {
@@ -299,6 +320,7 @@ app.post('/sales/add', async (req, res) => {
         if (!item) return res.redirect('/');
         
         let remainingToSell = parseInt(qty);
+        let totalCogsDepleted = 0;
         const { rows: lots } = await db.query('SELECT * FROM lots WHERE inventory_id = $1 AND qty > 0 ORDER BY id ASC', [item_id]);
         
         const client = await db.connect();
@@ -306,9 +328,11 @@ app.post('/sales/add', async (req, res) => {
             await client.query('BEGIN');
             for (let lot of lots) {
                 if (lot.qty >= remainingToSell) {
+                    totalCogsDepleted += remainingToSell * parseFloat(lot.cog || 0);
                     await client.query('UPDATE lots SET qty = $1 WHERE id = $2', [lot.qty - remainingToSell, lot.id]);
                     remainingToSell = 0; break;
                 } else {
+                    totalCogsDepleted += lot.qty * parseFloat(lot.cog || 0);
                     remainingToSell -= lot.qty;
                     await client.query('UPDATE lots SET qty = $1 WHERE id = $2', [0, lot.id]);
                 }
@@ -316,8 +340,8 @@ app.post('/sales/add', async (req, res) => {
             
             if (parseInt(qty) - remainingToSell > 0) {
                 const netPrice = (parseFloat(price) || 0) - (parseFloat(shipping_cost) || 0);
-                await client.query('INSERT INTO sales (item_id, item_name, qty, total_price, type, date) VALUES ($1, $2, $3, $4, $5, $6)', [
-                    item.id, item.name, parseInt(qty) - remainingToSell, netPrice, 'Sale', new Date().toISOString()
+                await client.query('INSERT INTO sales (item_id, item_name, qty, total_price, type, date, person, cogs_sold) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [
+                    item.id, item.name, parseInt(qty) - remainingToSell, netPrice, 'Sale', new Date().toISOString(), person || 'Unknown', totalCogsDepleted
                 ]);
             }
             await client.query('COMMIT');
@@ -332,11 +356,44 @@ app.post('/sales/add', async (req, res) => {
     res.redirect('/');
 });
 
+app.post('/shipping/undo', async (req, res) => {
+    const { shipping_id } = req.body;
+    if(!shipping_id) return res.redirect('/');
+    
+    try {
+        const client = await db.connect();
+        try {
+            await client.query('BEGIN');
+            
+            const { rows } = await client.query('SELECT * FROM shipping_logs WHERE id = $1', [shipping_id]);
+            const log = rows[0];
+            
+            if (log && log.impacts) {
+                const impacts = JSON.parse(log.impacts);
+                for(let imp of impacts) {
+                    await client.query('UPDATE lots SET cog = cog - $1 WHERE id = $2', [imp.amount, imp.lotId]);
+                }
+                await client.query('DELETE FROM shipping_logs WHERE id = $1', [shipping_id]);
+            }
+            
+            await client.query('COMMIT');
+        } catch(err) {
+            await client.query('ROLLBACK');
+            throw err;
+        } finally {
+            client.release();
+        }
+    } catch(e) { console.error('Undo Shipping Error:', e); }
+    
+    res.redirect('/');
+});
+
 app.post('/trade/add', async (req, res) => {
     const { 
         giving_item_id, giving_qty, cash_given, 
         receiving_name, receiving_qty, cash_received, 
-        receiving_price, receiving_set, receiving_image, receiving_tcgplayer 
+        receiving_price, receiving_set, receiving_image, receiving_tcgplayer,
+        person
     } = req.body;
     
     try {
@@ -344,6 +401,7 @@ app.post('/trade/add', async (req, res) => {
         const item = items[0];
         if (item) {
             let remainingToSell = parseInt(giving_qty || 1);
+            let totalCogsDepleted = 0;
             const { rows: lots } = await db.query('SELECT * FROM lots WHERE inventory_id = $1 AND qty > 0 ORDER BY id ASC', [item.id]);
             
             const client = await db.connect();
@@ -351,9 +409,11 @@ app.post('/trade/add', async (req, res) => {
                 await client.query('BEGIN');
                 for (let lot of lots) {
                     if (lot.qty >= remainingToSell) {
+                        totalCogsDepleted += remainingToSell * parseFloat(lot.cog || 0);
                         await client.query('UPDATE lots SET qty = $1 WHERE id = $2', [lot.qty - remainingToSell, lot.id]);
                         remainingToSell = 0; break;
                     } else {
+                        totalCogsDepleted += lot.qty * parseFloat(lot.cog || 0);
                         remainingToSell -= lot.qty;
                         await client.query('UPDATE lots SET qty = $1 WHERE id = $2', [0, lot.id]);
                     }
@@ -375,8 +435,8 @@ app.post('/trade/add', async (req, res) => {
                     await client.query('INSERT INTO lots (inventory_id, qty, cog, date) VALUES ($1, $2, $3, $4)', [recId, parseInt(receiving_qty || 1), Math.max(0, unitCog), new Date().toISOString()]);
                     
                     const totalVal = parseFloat(receiving_price || 0) * parseInt(receiving_qty || 1) + parseFloat(cash_received || 0);
-                    await client.query('INSERT INTO sales (item_id, item_name, qty, total_price, type, date) VALUES ($1, $2, $3, $4, $5, $6)', [
-                        item.id, item.name + ` ➔ ${receiving_name}`, parseInt(giving_qty || 1), totalVal, 'Trade', new Date().toISOString()
+                    await client.query('INSERT INTO sales (item_id, item_name, qty, total_price, type, date, person, cogs_sold) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [
+                        item.id, item.name + ` ➔ ${receiving_name}`, parseInt(giving_qty || 1), totalVal, 'Trade', new Date().toISOString(), person || 'Unknown', totalCogsDepleted
                     ]);
                 }
                 await client.query('COMMIT');
@@ -402,14 +462,56 @@ app.post('/sales/refund', async (req, res) => {
             const { rows: items } = await db.query('SELECT id FROM inventory WHERE id = $1', [sale.item_id]);
             const item = items[0];
             if (item) {
+                const cogToRestore = (sale.qty && sale.qty > 0) ? (sale.cogs_sold / sale.qty) : 0;
                 await db.query('INSERT INTO lots (inventory_id, qty, cog, date) VALUES ($1, $2, $3, $4)', [
-                    item.id, sale.qty, 0, new Date().toISOString()
+                    item.id, sale.qty, cogToRestore, new Date().toISOString()
                 ]);
             }
         }
         await db.query('DELETE FROM sales WHERE id = $1', [sale_id]);
     } catch(e) { console.error('Refund Error:', e); }
     res.redirect('/');
+});
+
+app.post('/api/sync-prices', async (req, res) => {
+    // Fire and forget simple sync implementation to iterate item by item safely
+    res.redirect('/?syncing=true');
+    try {
+        const { rows: items } = await db.query("SELECT id, name, set_name, data_source FROM inventory WHERE data_source IN ('tcgplayer', 'pricecharting')");
+        const rate = await getUsdToCadRate();
+        
+        for (let item of items) {
+            try {
+                if (item.data_source === 'pricecharting') {
+                    const response = await axios.get(`https://www.pricecharting.com/search-products?q=${encodeURIComponent(item.name)}&type=prices`, {
+                        headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 8000
+                    });
+                    if (response.data && response.data.products && response.data.products.length > 0) {
+                        const match = response.data.products.find(p => p.productName.toLowerCase() === item.name.toLowerCase()) || response.data.products[0];
+                        const num = parseFloat((match.price1 || '').replace(/[^0-9.]/g, ''));
+                        if (!isNaN(num) && num > 0) {
+                            await db.query('UPDATE inventory SET market_price = $1 WHERE id = $2', [parseFloat((num * rate).toFixed(1)), item.id]);
+                        }
+                    }
+                } else if (item.data_source === 'tcgplayer') {
+                    const qStr = `name:"${item.name}"${item.set_name && item.set_name !== 'Custom' && item.set_name !== 'Unknown' ? ` set.name:"${item.set_name}"` : ''}`;
+                    const response = await axios.get(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(qStr)}&pageSize=1`, { timeout: 8000 });
+                    if (response.data && response.data.data && response.data.data.length > 0) {
+                        const card = response.data.data[0];
+                        if (card.tcgplayer && card.tcgplayer.prices) {
+                            const p = card.tcgplayer.prices.normal?.market || card.tcgplayer.prices.holofoil?.market || card.tcgplayer.prices.reverseHolofoil?.market;
+                            if (p) {
+                                await db.query('UPDATE inventory SET market_price = $1 WHERE id = $2', [parseFloat((p * rate).toFixed(1)), item.id]);
+                            }
+                        }
+                    }
+                }
+            } catch(subE) {
+                console.error('Failed syncing price for:', item.name, subE.message);
+            }
+            await new Promise(r => setTimeout(r, 1000)); // Respect limits (1 req/sec)
+        }
+    } catch(e) { console.error('Overall Sync Error:', e); }
 });
 
 app.listen(PORT, '0.0.0.0', () => {

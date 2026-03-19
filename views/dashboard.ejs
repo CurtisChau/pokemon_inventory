@@ -1,180 +1,214 @@
 <%- include('partials/header') %>
 
-<main class="flex-1 p-4 lg:p-8 w-full max-w-7xl mx-auto">
-  <div class="flex flex-col gap-6">
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-      <h1 class="text-3xl font-extrabold tracking-tight">Dashboard Overview</h1>
-      <div class="flex items-center gap-2">
-        <form method="GET" action="/" class="flex items-center gap-2">
-          <select name="range" class="select select-bordered select-sm rounded-full bg-base-100 shadow-sm" onchange="this.form.submit()">
-            <option value="7" <%= range === '7' ? 'selected' : '' %>>Last 7 Days</option>
-            <option value="30" <%= (range === '30' || !range) ? 'selected' : '' %>>Last 30 Days</option>
-            <option value="90" <%= range === '90' ? 'selected' : '' %>>Last 90 Days</option>
-            <option value="all" <%= range === 'all' ? 'selected' : '' %>>All Time</option>
-          </select>
-        </form>
-        <button class="btn btn-primary btn-sm rounded-full px-6 shadow-lg shadow-primary/30">Sync Prices</button>
-      </div>
-    </div>
+<style>
+  .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(150, 150, 150, 0.2); border-radius: 10px; }
+</style>
 
-    <!-- Stats Carousel/Grid -->
-    <% 
-      const totalCogs = inventory.reduce((sum, item) => sum + item.lots.reduce((q, l) => q + (l.qty * l.cog), 0), 0);
-      const strictShippingTotal = (typeof totalShipping !== 'undefined') ? totalShipping : 0;
-      const margin = totalValue - totalCogs;
-    %>
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 lg:gap-6">
-      <div class="card bg-base-100 shadow-sm border border-base-200/50 hover:border-primary/50 transition-colors">
-        <div class="card-body p-5 lg:p-6">
-          <div class="flex justify-between items-start">
-            <h2 class="card-title text-sm font-medium text-base-content/60 uppercase tracking-wider">Total Value</h2>
-            <div class="p-2 bg-primary/10 rounded-lg text-primary">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            </div>
-          </div>
-          <p class="text-3xl font-black mt-2 bg-gradient-to-br from-base-content to-base-content/70 bg-clip-text text-transparent">$<%= totalValue.toFixed(2) %></p>
-          <div class="text-xs mt-3 flex items-center gap-1 text-base-content/50 font-medium">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
-            <span>Current Estimate</span>
-          </div>
+<main class="flex-1 p-4 lg:p-6 w-full max-w-[1600px] mx-auto overflow-x-hidden">
+  <div class="flex flex-col lg:flex-row gap-6">
+    <!-- LEFT COLUMN -->
+    <div class="flex flex-col gap-6 flex-1 w-full lg:w-2/3">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <h1 class="text-3xl font-extrabold tracking-tight bg-gradient-to-br from-base-content to-base-content/60 bg-clip-text text-transparent drop-shadow-sm">Dashboard Overview</h1>
+        <div class="flex items-center gap-2">
+          <!-- We moved Global Range filter to Ledger, or we can keep a quick Sync button here -->
+          <form method="POST" action="/api/sync-prices">
+            <button type="submit" class="btn btn-primary btn-sm rounded-full px-6 shadow-lg shadow-primary/30 flex items-center gap-1 hover:scale-105 transition-transform" onclick="this.innerHTML='<span class=\'loading loading-spinner loading-xs\'></span> Syncing...'; this.classList.add('opacity-70', 'pointer-events-none');">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" /></svg>
+              Sync Prices
+            </button>
+          </form>
         </div>
       </div>
-      <div class="card bg-base-100 shadow-sm border border-base-200/50 hover:border-secondary/50 transition-colors">
-        <div class="card-body p-5 lg:p-6">
-          <div class="flex justify-between items-start">
-            <h2 class="card-title text-sm font-medium text-base-content/60 uppercase tracking-wider">Net Sales (<%= range === 'all' ? 'All' : range + 'd' %>)</h2>
-            <div class="p-2 bg-secondary/10 rounded-lg text-secondary">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-            </div>
-          </div>
-          <p class="text-3xl font-black mt-2 bg-gradient-to-br from-base-content to-base-content/70 bg-clip-text text-transparent">$<%= sales.reduce((a, b) => a + b.total_price, 0).toFixed(2) %></p>
-          <div class="text-xs mt-3 flex items-center gap-1 text-success font-medium">
-            <span>Range Selected</span>
-          </div>
-        </div>
-      </div>
-      <div class="card bg-base-100 shadow-sm border border-base-200/50 hover:border-accent/50 transition-colors">
-        <div class="card-body p-5 lg:p-6">
-          <div class="flex justify-between items-start">
-            <h2 class="card-title text-sm font-medium text-base-content/60 uppercase tracking-wider">Est. Margin</h2>
-            <div class="p-2 bg-accent/10 rounded-lg text-accent">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-            </div>
-          </div>
-          <p class="text-3xl font-black mt-2 bg-gradient-to-br from-base-content to-base-content/70 bg-clip-text text-transparent">$<%= margin.toFixed(2) %></p>
-          <div class="text-xs mt-3 flex items-center gap-1 text-base-content/50 font-medium">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            <span>After $<%= totalCogs.toFixed(2) %> total CoG</span>
-          </div>
-        </div>
-      </div>
-      <div class="card bg-base-100 shadow-sm border border-base-200/50 hover:border-warning/50 transition-colors">
-        <div class="card-body p-5 lg:p-6">
-          <div class="flex justify-between items-start">
-            <h2 class="card-title text-[11px] font-bold text-base-content/60 uppercase tracking-wider">Shipping Paid</h2>
-            <div class="p-2 bg-warning/10 rounded-lg text-warning">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
-            </div>
-          </div>
-          <p class="text-3xl font-black mt-2 bg-gradient-to-br from-base-content to-base-content/70 bg-clip-text text-transparent">$<%= strictShippingTotal.toFixed(2) %></p>
-          <div class="text-xs mt-3 flex items-center gap-1 text-base-content/50 font-medium whitespace-nowrap">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            <span>Tracking Logs</span>
-          </div>
-        </div>
-      </div>
-    </div>
 
-    <!-- Charts Section -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
-      <div class="card bg-base-100 shadow-sm border border-base-200/50 lg:col-span-2">
-        <div class="card-body p-4 lg:p-6">
-          <h2 class="card-title text-sm font-medium text-base-content/60 uppercase tracking-wider mb-2">Sales Revenue Trend</h2>
-          <div class="h-64 w-full relative">
-            <canvas id="salesChart"></canvas>
+      <!-- Stats Carousel/Grid -->
+      <% 
+        const totalCogs = inventory.reduce((sum, item) => sum + item.lots.reduce((q, l) => q + (l.qty * l.cog), 0), 0);
+        const strictShippingTotal = (typeof totalShipping !== 'undefined') ? totalShipping : 0;
+        const margin = totalValue - totalCogs;
+        const realizedProfit = sales.reduce((sum, s) => sum + (s.total_price - (s.cogs_sold || 0)), 0);
+      %>
+      <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <div class="card bg-base-100 shadow-sm border border-base-200/50 hover:border-primary/40 transition-colors">
+          <div class="card-body p-4 lg:p-5 flex flex-col justify-center">
+            <h2 class="card-title text-[10px] font-bold text-base-content/60 uppercase tracking-wider leading-none">Total Value</h2>
+            <p class="text-2xl font-black mt-2 text-primary shadow-primary/10">$<%= totalValue.toFixed(2) %></p>
           </div>
         </div>
-      </div>
-      <div class="card bg-base-100 shadow-sm border border-base-200/50">
-        <div class="card-body p-4 lg:p-6 flex flex-col items-center">
-          <h2 class="card-title text-sm font-medium text-base-content/60 uppercase tracking-wider mb-2 w-full text-left">Inventory by Category</h2>
-          <div class="h-64 w-full relative flex items-center justify-center">
-            <canvas id="categoryChart"></canvas>
+        <div class="card bg-base-100 shadow-sm border border-base-200/50 hover:border-secondary/40 transition-colors">
+          <div class="card-body p-4 lg:p-5 flex flex-col justify-center">
+            <h2 class="card-title text-[10px] font-bold text-base-content/60 uppercase tracking-wider leading-none">Net Sales</h2>
+            <p class="text-2xl font-black mt-2 text-secondary shadow-secondary/10">$<%= sales.reduce((a, b) => a + b.total_price, 0).toFixed(2) %></p>
           </div>
         </div>
-      </div>
-    </div>
+        
+        <!-- Highlighted Profit Card -->
+        <div class="card bg-base-100 shadow-sm border border-success/30 relative overflow-hidden outline outline-action/30 col-span-2 lg:col-span-1">
+          <div class="absolute -right-4 -top-4 bg-success/20 w-16 h-16 rounded-full blur-xl"></div>
+          <div class="card-body p-4 lg:p-5 flex flex-col justify-center z-10">
+            <h2 class="card-title text-[11px] font-black uppercase tracking-wider text-success flex items-center gap-1 leading-none">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              Realized Profit
+            </h2>
+            <p class="text-3xl font-black mt-2 text-success drop-shadow-sm">$<%= realizedProfit.toFixed(2) %></p>
+          </div>
+        </div>
 
-    <!-- Quick Actions -->
-    <h2 class="text-xl font-bold mt-2">Quick Actions & Sales</h2>
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      <button onclick="document.getElementById('record_sale_modal').showModal()" class="btn h-28 flex flex-col gap-3 justify-center border border-base-300 hover:border-primary/50 hover:bg-primary/5 transition-all shadow-sm rounded-2xl group">
-        <div class="p-3 bg-base-200 rounded-full group-hover:bg-primary group-hover:text-primary-content transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+        <div class="card bg-base-100 shadow-sm border border-base-200/50 hover:bg-base-200/20 transition-colors">
+          <div class="card-body p-4 lg:p-5 flex flex-col justify-center">
+            <h2 class="card-title text-[10px] font-bold text-base-content/60 uppercase tracking-wider leading-none" title="If all current inventory is sold at market price">Est. Margin</h2>
+            <p class="text-xl font-bold mt-2 text-base-content/80">$<%= margin.toFixed(2) %></p>
+          </div>
         </div>
-        <span class="font-semibold text-sm">Record Sale</span>
-      </button>
-      <button onclick="document.getElementById('bulk_sale_modal').showModal()" class="btn h-28 flex flex-col gap-3 justify-center border border-base-300 hover:border-secondary/50 hover:bg-secondary/5 transition-all shadow-sm rounded-2xl group">
-        <div class="p-3 bg-base-200 rounded-full group-hover:bg-secondary group-hover:text-secondary-content transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+        <div class="card bg-base-100 shadow-sm border border-base-200/50 hover:bg-base-200/20 transition-colors">
+          <div class="card-body p-4 lg:p-5 flex flex-col justify-center">
+            <h2 class="card-title text-[10px] font-bold text-base-content/60 uppercase tracking-wider leading-none">Shipping Cost</h2>
+            <p class="text-xl font-bold mt-2 text-warning">$<%= strictShippingTotal.toFixed(2) %></p>
+          </div>
         </div>
-        <span class="font-semibold text-sm">Bulk Sale</span>
-      </button>
-      <button onclick="document.getElementById('apply_shipping_modal').showModal()" class="btn h-28 flex flex-col gap-3 justify-center border border-base-300 hover:border-accent/50 hover:bg-accent/5 transition-all shadow-sm rounded-2xl group">
-        <div class="p-3 bg-base-200 rounded-full group-hover:bg-accent group-hover:text-accent-content transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4m16 0l-4-4m4 4l-4 4"/></svg>
-        </div>
-        <span class="font-semibold text-sm">Log Shipment</span>
-      </button>
-      <button class="btn h-28 flex flex-col gap-3 justify-center border border-base-300 hover:border-neutral/50 hover:bg-neutral/5 transition-all shadow-sm rounded-2xl group">
-        <div class="p-3 bg-base-200 rounded-full group-hover:bg-neutral group-hover:text-neutral-content transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-        </div>
-        <span class="font-semibold text-sm">View Reports</span>
-      </button>
-    </div>
-    
-    <!-- Recent Activity Placeholder -->
-    <h2 class="text-xl font-bold mt-4">Recent Sales</h2>
-    <div class="card bg-base-100 shadow-sm border border-base-200/60 overflow-hidden">
-      <div class="overflow-x-auto">
-        <table class="table w-full whitespace-nowrap">
-          <thead>
-            <tr class="bg-base-200/50 text-base-content/70 border-b border-base-200">
-              <th class="font-medium rounded-tl-xl p-4">Item</th>
-              <th class="font-medium p-4">Date</th>
-              <th class="font-medium text-right rounded-tr-xl p-4">Sale Price</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% if(typeof sales !== 'undefined' && sales.length > 0) {
-                 sales.slice().reverse().slice(0, 5).forEach(sale => { %>
-            <tr class="hover:bg-base-200/30 transition-colors border-b border-base-200/50">
-              <td class="p-4">
-                <div class="flex items-center gap-3">
-                  <div class="w-8 h-8 rounded-full <%= sale.type === 'Trade' ? 'bg-warning/10 text-warning' : 'bg-primary/10 text-primary' %> flex items-center justify-center font-bold text-xs"><%= sale.item_name.charAt(0).toUpperCase() %></div>
-                  <span class="font-medium"><%= sale.item_name %> <span class="badge badge-sm badge-ghost ml-1">x<%= sale.qty %></span></span>
-                </div>
-              </td>
-              <td class="text-base-content/60 text-sm p-4"><%= new Date(sale.date).toLocaleDateString() %></td>
-              <td class="font-bold text-success text-right p-4">
-                <div class="flex flex-col items-end gap-1">
-                  <span>$<%= sale.total_price.toFixed(2) %></span>
-                  <form method="POST" action="/sales/refund">
-                    <input type="hidden" name="sale_id" value="<%= sale.id %>" />
-                    <button type="submit" class="btn btn-xs btn-outline btn-error opacity-50 hover:opacity-100" onclick="return confirm('Refund this transaction and restore stock?')">Undo</button>
-                  </form>
-                </div>
-              </td>
-            </tr>
-            <% })} else { %>
-            <tr><td colspan="3" class="text-center p-8 text-base-content/50">No recent sales.</td></tr>
-            <% } %>
-          </tbody>
-        </table>
       </div>
-    </div>
-    
+
+      <!-- Charts Section -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+        <div class="card bg-base-100 shadow-sm border border-base-200/50 relative overflow-hidden">
+          <div class="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent pointer-events-none"></div>
+          <div class="card-body p-4 lg:p-6 z-10">
+            <h2 class="card-title text-sm font-bold text-base-content/70 uppercase tracking-wider mb-2">Sales Revenue Trend</h2>
+            <div class="h-64 w-full relative">
+              <canvas id="salesChart"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class="card bg-base-100 shadow-sm border border-base-200/50">
+          <div class="card-body p-4 lg:p-6 flex flex-col items-center">
+            <h2 class="card-title text-sm font-bold text-base-content/70 uppercase tracking-wider mb-2 w-full text-left">Inventory by Category</h2>
+            <div class="h-64 w-full relative flex items-center justify-center">
+              <canvas id="categoryChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <h2 class="text-xl font-bold mt-2 tracking-tight">Quick Actions</h2>
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+        <button onclick="document.getElementById('record_sale_modal').showModal()" class="btn h-24 flex flex-col gap-2 justify-center border border-base-300 hover:border-primary/50 hover:bg-primary/5 transition-all shadow-sm rounded-2xl group">
+          <div class="p-2 bg-base-200 rounded-full group-hover:bg-primary group-hover:text-primary-content transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+          </div>
+          <span class="font-semibold text-xs text-base-content/70 group-hover:text-base-content">Record Sale</span>
+        </button>
+        <button onclick="document.getElementById('add_item_modal').showModal(); switchAddMode('bulk');" class="btn h-24 flex flex-col gap-2 justify-center border border-base-300 hover:border-secondary/50 hover:bg-secondary/5 transition-all shadow-sm rounded-2xl group">
+          <div class="p-2 bg-base-200 rounded-full group-hover:bg-secondary group-hover:text-secondary-content transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+          </div>
+          <span class="font-semibold text-xs text-base-content/70 group-hover:text-base-content">Bulk Import</span>
+        </button>
+        <button onclick="document.getElementById('record_trade_modal').showModal()" class="btn h-24 flex flex-col gap-2 justify-center border border-base-300 hover:border-accent/50 hover:bg-accent/5 transition-all shadow-sm rounded-2xl group">
+          <div class="p-2 bg-base-200 rounded-full group-hover:bg-accent group-hover:text-accent-content transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+          </div>
+          <span class="font-semibold text-xs text-base-content/70 group-hover:text-base-content">Record Trade</span>
+        </button>
+        <button onclick="document.getElementById('apply_shipping_modal').showModal()" class="btn h-24 flex flex-col gap-2 justify-center border border-base-300 hover:border-warning/50 hover:bg-warning/5 transition-all shadow-sm rounded-2xl group">
+          <div class="p-2 bg-base-200 rounded-full group-hover:bg-warning group-hover:text-warning-content transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4m16 0l-4-4m4 4l-4 4"/></svg>
+          </div>
+          <span class="font-semibold text-xs text-base-content/70 group-hover:text-base-content">Distribute Freight</span>
+        </button>
+      </div>
+
+    </div> <!-- Close Left Column -->
+
+    <!-- RIGHT COLUMN: LEDGER SIDEBAR -->
+    <div class="w-full lg:w-1/3 flex flex-col gap-4 bg-base-200/30 rounded-[2rem] p-4 lg:p-6 border border-base-300/50 shadow-inner">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xl font-bold tracking-tight flex items-center gap-2">
+          <div class="p-2 bg-base-content text-base-100 rounded-xl shadow-md">
+             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          </div>
+          Activity Ledger
+        </h2>
+      </div>
+
+      <!-- Ledger Filters -->
+      <form method="GET" action="/" class="flex flex-col gap-2 bg-base-100 p-3 rounded-2xl border border-base-200 shadow-sm">
+        <div class="flex items-center justify-between mb-1 px-1">
+          <span class="text-[10px] font-bold text-base-content/60 tracking-wider uppercase">Filter Data</span>
+        </div>
+        <div class="flex items-center gap-2">
+           <select name="range" class="select select-bordered select-xs w-1/2 rounded-lg" onchange="this.form.submit()">
+               <option value="7" <%= range === '7' ? 'selected' : '' %>>Last 7 Days</option>
+               <option value="30" <%= (range === '30' || !range) ? 'selected' : '' %>>Last 30 Days</option>
+               <option value="90" <%= range === '90' ? 'selected' : '' %>>Last 90 Days</option>
+               <option value="all" <%= range === 'all' ? 'selected' : '' %>>All Time</option>
+           </select>
+           <select name="person" class="select select-bordered select-xs w-1/2 rounded-lg" onchange="this.form.submit()">
+               <option value="all">All Sellers</option>
+               <% if(typeof persons !== 'undefined') { persons.forEach(p => { %>
+                  <option value="<%= p %>" <%= (typeof selectedPerson !== 'undefined' && selectedPerson === p) ? 'selected' : '' %>><%= p %></option>
+               <% }) } %>
+           </select>
+        </div>
+      </form>
+
+      <!-- Ledger Mini Chart -->
+      <div class="bg-base-100 p-4 rounded-2xl border border-base-200 shadow-sm h-36 relative flex flex-col justify-end overflow-hidden">
+         <h3 class="absolute top-3 left-4 text-[10px] font-bold uppercase tracking-wider text-base-content/50 z-10">Ledger Velocity</h3>
+         <canvas id="ledgerChart"></canvas>
+      </div>
+
+      <!-- Log List -->
+      <div class="flex-1 overflow-y-auto pr-1 space-y-3 lg:max-h-[calc(100vh-340px)] custom-scrollbar">
+        <% if(typeof activity !== 'undefined' && activity.length > 0) {
+             activity.forEach(act => { %>
+          <div class="bg-base-100 p-3 border border-base-200 rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all relative overflow-hidden group">
+            <div class="flex justify-between items-start mb-2">
+               <div class="flex items-center gap-2">
+                 <% if(act.log_type === 'sale') { %>
+                   <div class="w-7 h-7 rounded-lg <%= act.type === 'Trade' ? 'bg-warning/20 text-warning' : 'bg-success/20 text-success' %> flex items-center justify-center font-bold text-xs"><%= act.type === 'Sale' ? 'S' : 'T' %></div>
+                   <span class="font-bold text-sm leading-tight max-w-[140px] truncate" title="<%= act.item_name %>"><%= act.item_name %> <span class="opacity-50 text-[10px] ml-0.5">x<%= act.qty %></span></span>
+                 <% } else if (act.log_type === 'shipping') { %>
+                   <div class="w-7 h-7 rounded-lg bg-error/20 text-error flex items-center justify-center font-bold text-xs"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg></div>
+                   <span class="font-bold text-sm leading-tight text-base-content/80">Freight Log</span>
+                 <% } %>
+               </div>
+               <span class="text-[9px] font-medium opacity-50 bg-base-200 px-1.5 py-0.5 rounded-md border border-base-300"><%= new Date(act.date).toLocaleDateString(undefined, {month:'short', day:'numeric'}) %></span>
+            </div>
+            
+            <div class="flex justify-between items-end pl-[36px]">
+               <% if(act.log_type === 'sale') { %>
+                 <span class="text-[10px] bg-secondary/10 text-secondary border border-secondary/20 px-2 py-0.5 rounded flex items-center gap-1 font-semibold max-w-[100px] truncate"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg> <%= act.person || 'Unknown' %></span>
+                 <div class="text-right">
+                    <div class="font-black text-success leading-none text-base">+$<%= act.total_price.toFixed(2) %></div>
+                    <div class="text-[9px] opacity-60 mt-1 font-mono tracking-tighter" title="Cost of Goods Sold">COGS:$<%= (act.cogs_sold||0).toFixed(2) %> | PROFIT:$<%= (act.total_price - (act.cogs_sold||0)).toFixed(2) %></div>
+                 </div>
+                 <form method="POST" action="/sales/refund" class="absolute inset-y-0 right-0 bg-base-200/95 backdrop-blur-sm px-3 flex items-center justify-center translate-x-[110%] group-hover:translate-x-0 transition-transform duration-300 ease-out border-l border-base-300">
+                   <input type="hidden" name="sale_id" value="<%= act.id %>" />
+                   <button type="submit" class="btn btn-sm btn-error shadow-sm rounded-xl" onclick="return confirm('Refund transaction and resurrect stock?')">Undo</button>
+                 </form>
+               <% } else if (act.log_type === 'shipping') { %>
+                 <span class="text-[10px] opacity-50">Distrib. Math</span>
+                 <div class="text-right">
+                    <div class="font-black text-error leading-none text-base">-$<%= (act.cost || 0).toFixed(2) %></div>
+                 </div>
+                 <form method="POST" action="/shipping/undo" class="absolute inset-y-0 right-0 bg-base-200/95 backdrop-blur-sm px-3 flex items-center justify-center translate-x-[110%] group-hover:translate-x-0 transition-transform duration-300 ease-out border-l border-base-300">
+                   <input type="hidden" name="shipping_id" value="<%= act.id %>" />
+                   <button type="submit" class="btn btn-sm btn-error shadow-sm rounded-xl" onclick="return confirm('Reverse this overhead tracking?')">Undo</button>
+                 </form>
+               <% } %>
+            </div>
+          </div>
+        <% })} else { %>
+           <div class="text-center py-10 opacity-30 italic text-xs border-2 border-dashed border-base-300 rounded-2xl flex flex-col items-center gap-2">
+             <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-base-content" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+             Quiet here...
+           </div>
+        <% } %>
+      </div>
+    </div> <!-- Close Ledger Sidebar -->
   </div>
 </main>
 
@@ -182,6 +216,7 @@
 <script>
   const inventoryData = <%- JSON.stringify(inventory || []) %>;
   const salesData = <%- JSON.stringify(sales || []) %>;
+  const activityData = <%- JSON.stringify(activity || []) %>;
   
   // 1. Sales Trend
   const salesByDate = {};
@@ -189,7 +224,6 @@
       const d = s.date ? new Date(s.date).toISOString().split('T')[0] : 'Unknown';
       salesByDate[d] = (salesByDate[d] || 0) + (s.total_price || 0);
   });
-  
   const sortedDates = Object.keys(salesByDate).sort();
   
   const salesCtx = document.getElementById('salesChart').getContext('2d');
@@ -201,7 +235,7 @@
               label: 'Daily Revenue (CAD)',
               data: sortedDates.length ? sortedDates.map(d => salesByDate[d]) : [0],
               borderColor: '#10b981',
-              backgroundColor: 'rgba(16, 185, 129, 0.2)',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
               borderWidth: 3,
               tension: 0.4,
               fill: true,
@@ -227,7 +261,6 @@
       const catName = item.category || 'Singles/Unknown';
       setValues[catName] = (setValues[catName] || 0) + val;
   });
-  
   const setLabels = Object.keys(setValues).sort((a,b) => setValues[b] - setValues[a]).slice(0, 5);
   let otherVal = 0;
   Object.keys(setValues).sort((a,b) => setValues[b] - setValues[a]).slice(5).forEach(k => { otherVal += setValues[k]; });
@@ -250,12 +283,48 @@
       options: {
           responsive: true,
           maintainAspectRatio: false,
-          cutout: '65%',
+          cutout: '70%',
           plugins: {
               legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, font: {size: 11} } }
           }
       }
   });
+
+  // 3. Ledger Chart (Volume/Transactions)
+  const ledgerDates = {};
+  activityData.forEach(act => {
+      if(act.log_type === 'sale') {
+         const d = act.date ? new Date(act.date).toISOString().split('T')[0] : 'Unknown';
+         ledgerDates[d] = (ledgerDates[d] || 0) + 1;
+      }
+  });
+  const lSorted = Object.keys(ledgerDates).sort();
+  const ledgerCtx = document.getElementById('ledgerChart')?.getContext('2d');
+  if(ledgerCtx) {
+    new Chart(ledgerCtx, {
+        type: 'bar',
+        data: {
+            labels: lSorted.length ? lSorted : ['No Data'],
+            datasets: [{
+                label: 'Transactions',
+                data: lSorted.length ? lSorted.map(d => ledgerDates[d]) : [0],
+                backgroundColor: 'rgba(56, 189, 248, 0.5)',
+                borderRadius: 4,
+                barPercentage: 0.6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { enabled: true } },
+            scales: {
+                y: { display: false, beginAtZero: true },
+                x: { display: false }
+            },
+            layout: { padding: 0 }
+        }
+    });
+  }
 </script>
 
 <%- include('partials/footer') %>

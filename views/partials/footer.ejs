@@ -344,8 +344,12 @@
       
     </div>
     
-    <div class="modal-action bg-base-200 p-4 m-0 rounded-b-2xl">
-      <div class="w-full flex justify-end">
+    <div class="modal-action bg-base-200 p-4 m-0 rounded-b-2xl flex flex-col sm:flex-row gap-4 justify-between items-center w-full">
+      <label class="form-control w-full sm:w-1/3">
+        <div class="label py-0 pb-1"><span class="label-text text-[10px] uppercase font-bold text-base-content/60">Conducted By</span></div>
+        <input type="text" name="person" placeholder="e.g. John" class="input input-bordered input-sm w-full" />
+      </label>
+      <div class="flex justify-end mt-4 sm:mt-0">
         <button type="button" class="btn mr-2" onclick="window.record_trade_modal.close()">Cancel</button>
         <button type="submit" class="btn btn-warning">Finalize Trade</button>
       </div>
@@ -415,6 +419,10 @@
           <input type="number" step="0.01" name="shipping_cost" placeholder="0.00" class="input input-bordered w-full" />
         </label>
       </div>
+      <label class="form-control w-full">
+        <div class="label"><span class="label-text text-xs font-bold text-base-content/70">Conducted By (Person)</span></div>
+        <input type="text" name="person" placeholder="e.g. Curtis..." class="input input-bordered w-full" />
+      </label>
       <div class="modal-action mt-6">
         <button type="button" class="btn mr-2" onclick="window.record_sale_modal.close()">Cancel</button>
         <button type="submit" class="btn btn-primary">Save Sale</button>

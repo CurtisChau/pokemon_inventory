@@ -48,9 +48,15 @@ const initDB = async () => {
             CREATE TABLE IF NOT EXISTS shipping_logs (
             id SERIAL PRIMARY KEY,
             cost real DEFAULT 0.0,
+            impacts text,
             date text
             );
         `);
+        
+        // Add new columns if they don't exist (for migration)
+        await pool.query(`ALTER TABLE sales ADD COLUMN IF NOT EXISTS person text DEFAULT 'Unknown';`).catch(() => {});
+        await pool.query(`ALTER TABLE sales ADD COLUMN IF NOT EXISTS cogs_sold real DEFAULT 0.0;`).catch(() => {});
+        
         console.log("PostgreSQL Database Initialized!");
     } catch(err) {
         console.error("Error initializing postgres schemas:", err.message);

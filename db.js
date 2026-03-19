@@ -7,6 +7,10 @@ const pool = new Pool({
     ssl: process.env.DATABASE_URL && process.env.DATABASE_URL.includes('railway') ? { rejectUnauthorized: false } : false
 });
 
+pool.on('error', (err, client) => {
+    console.error('Unexpected error on idle client', err);
+});
+
 const initDB = async () => {
     try {
         await pool.query(`
@@ -56,6 +60,7 @@ const initDB = async () => {
         // Add new columns if they don't exist (for migration)
         await pool.query(`ALTER TABLE sales ADD COLUMN IF NOT EXISTS person text DEFAULT 'Unknown';`).catch(() => {});
         await pool.query(`ALTER TABLE sales ADD COLUMN IF NOT EXISTS cogs_sold real DEFAULT 0.0;`).catch(() => {});
+        await pool.query(`ALTER TABLE sales ADD COLUMN IF NOT EXISTS image text;`).catch(() => {});
         
         console.log("PostgreSQL Database Initialized!");
     } catch(err) {
@@ -64,16 +69,26 @@ const initDB = async () => {
 };
 
 const readHydratedInventory = async () => {
-    const { rows: items } = await pool.query('SELECT * FROM inventory ORDER BY name ASC');
-    const { rows: lots } = await pool.query('SELECT * FROM lots WHERE qty > 0');
-    
-    return items.map(item => {
-        return {
-            ...item,
-            set: item.set_name,
-            lots: lots.filter(l => l.inventory_id === item.id)
-        };
-    });
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
+        const { rows: items } = await client.query('SELECT * FROM inventory ORDER BY name ASC');
+        const { rows: lots } = await client.query('SELECT * FROM lots WHERE qty > 0');
+        await client.query('COMMIT');
+        
+        return items.map(item => {
+            return {
+                ...item,
+                set: item.set_name,
+                lots: lots.filter(l => l.inventory_id === item.id)
+            };
+        });
+    } catch(err) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
+    }
 };
 
 module.exports = { db: pool, initDB, readHydratedInventory };

@@ -255,6 +255,176 @@
   });
 </script>
 
+<!-- Edit Item Modal -->
+<dialog id="edit_item_modal" class="modal modal-bottom sm:modal-middle">
+  <div class="modal-box w-11/12 max-w-4xl relative overflow-visible p-0 shadow-2xl">
+    <div class="bg-secondary text-secondary-content p-4 rounded-t-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+      <div>
+        <h3 class="font-bold text-lg">Edit Inventory Item</h3>
+        <p class="text-xs md:text-sm opacity-90">Modify details, re-search correct image, or restock quantities.</p>
+      </div>
+    </div>
+    
+    <form method="POST" action="/inventory/edit" id="edit_item_form" class="p-6 space-y-4" enctype="multipart/form-data">
+      <input type="hidden" name="item_id" id="edit_item_id">
+      <input type="hidden" name="image_url" id="edit_api_image_url">
+      <input type="hidden" name="tcgplayer_url" id="edit_api_tcgplayer_url">
+      
+      <!-- Search functionality inside edit to override links -->
+      <label class="form-control w-full relative z-[80]">
+        <div class="label"><span class="label-text text-sm w-full flex justify-between items-center font-bold">Re-Link Image/API Match <select id="edit_data_source" class="select select-bordered select-xs ml-2 border-base-300 bg-base-200"><option value="tcgplayer">TCGPlayer</option><option value="pricecharting">PriceChart</option></select></span></div>
+        <input type="text" id="edit_search_input" placeholder="Search to automatically fix image and URL..." class="input input-sm input-secondary w-full" autocomplete="off" />
+        <ul id="edit_search_results" class="absolute top-[60px] left-0 w-full bg-base-100 shadow-2xl rounded-lg max-h-60 overflow-y-auto hidden border border-base-300 z-[100] mt-1"></ul>
+      </label>
+      
+      <div class="divider my-1">Manual Details</div>
+
+      <div class="flex gap-4">
+        <label class="form-control w-1/2">
+            <div class="label"><span class="label-text font-bold">Product Name</span></div>
+            <input type="text" name="name" id="edit_item_name" class="input input-bordered w-full" required />
+        </label>
+        <label class="form-control w-1/2">
+            <div class="label"><span class="label-text font-bold">Set Name</span></div>
+            <input type="text" name="set_name" id="edit_item_set" class="input input-bordered w-full" required />
+        </label>
+      </div>
+      
+      <div class="flex gap-4">
+        <label class="form-control w-1/3 text-xs">
+          <div class="label"><span class="label-text">Category</span></div>
+          <select name="category" id="edit_item_category" class="select select-bordered">
+            <option value="Singles">Singles</option>
+            <option value="Sealed">Sealed Box/Case</option>
+            <option value="Graded">Graded Slabs</option>
+            <option value="Accessories">Accessories</option>
+          </select>
+        </label>
+        <label class="form-control w-1/3 text-xs">
+          <div class="label"><span class="label-text">Condition</span></div>
+          <select name="condition" id="edit_item_condition" class="select select-bordered">
+            <option>Near Mint</option>
+            <option>Lightly Played</option>
+            <option>Sealed</option>
+          </select>
+        </label>
+        <label class="form-control w-1/3">
+          <div class="label">
+            <span class="label-text">Market Price Override</span>
+          </div>
+          <input type="number" step="0.01" name="market_price" id="edit_market_price" class="input input-bordered w-full" />
+        </label>
+      </div>
+      
+      <label class="form-control w-full">
+        <div class="label"><span class="label-text">Custom Image (Optional)</span></div>
+        <input type="file" name="edit_image_upload" accept="image/*" class="file-input file-input-bordered file-input-sm w-full" />
+      </label>
+
+      <div class="flex gap-4 bg-warning/10 p-4 rounded-xl border border-warning/30 items-center">
+        <div class="flex-1 text-xs">
+            <strong class="text-warning block mb-1 tracking-wider uppercase">Restock / Recount</strong>
+            Update the total quantity owned. The system will automatically compute differences to correctly add or strip units from your dynamic Cost-of-Goods logs.
+        </div>
+        <label class="form-control w-24">
+          <div class="label"><span class="label-text text-[10px] font-bold text-center w-full">Avg Unit Cost</span></div>
+          <input type="number" step="0.01" name="avg_cog" id="edit_item_cog" min="0" class="input input-bordered w-full text-center font-bold" />
+        </label>
+        <label class="form-control w-24">
+          <div class="label"><span class="label-text text-[10px] font-bold text-center w-full">Total Qty</span></div>
+          <input type="number" name="qty" id="edit_item_qty" min="0" class="input input-bordered input-warning w-full text-center font-black text-lg" required />
+        </label>
+      </div>
+
+      <div class="modal-action mt-6">
+        <button type="button" class="btn mr-2" onclick="window.edit_item_modal.close()">Cancel</button>
+        <button type="submit" class="btn btn-secondary shadow-lg">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+<script>
+  function openEditModal(btn) {
+      const dataStr = btn.getAttribute('data-item');
+      if (!dataStr) return;
+      
+      const item = JSON.parse(atob(dataStr));
+      
+      document.getElementById('edit_item_id').value = item.id;
+      document.getElementById('edit_item_name').value = item.name;
+      document.getElementById('edit_item_set').value = item.set || item.set_name || '';
+      document.getElementById('edit_item_condition').value = item.condition || 'Near Mint';
+      document.getElementById('edit_item_category').value = item.category || 'Singles';
+      document.getElementById('edit_market_price').value = item.market_price || '';
+      document.getElementById('edit_item_qty').value = item.totalQty || 0;
+      document.getElementById('edit_item_cog').value = item.avgCog !== undefined ? parseFloat(item.avgCog).toFixed(2) : '0.00';
+      
+      document.getElementById('edit_api_image_url').value = item.image || '';
+      document.getElementById('edit_api_tcgplayer_url').value = item.tcgplayer_url || '';
+      
+      document.getElementById('edit_item_modal').showModal();
+  }
+
+  const editSearchInput = document.getElementById('edit_search_input');
+  const editSearchResults = document.getElementById('edit_search_results');
+  let editCurrentCards = [];
+  let editSearchTimeout;
+
+  editSearchInput?.addEventListener('input', (e) => {
+    clearTimeout(editSearchTimeout);
+    const q = e.target.value.trim();
+    const source = document.getElementById('edit_data_source').value;
+    if (q.length < 3) { editSearchResults.classList.add('hidden'); return; }
+    
+    editSearchTimeout = setTimeout(async () => {
+      const endpoint = source === 'pricecharting' ? '/api/search/sealed?q=' : '/api/search?q=';
+      const res = await fetch(endpoint + encodeURIComponent(q));
+      const data = await res.json();
+      
+      if (source === 'pricecharting' && Array.isArray(data)) {
+         editCurrentCards = data;
+         editSearchResults.innerHTML = editCurrentCards.map((p, idx) => {
+            return '<li class="p-3 hover:bg-base-200 cursor-pointer flex gap-3" onclick="selectEditCard('+idx+', \'pricecharting\')">' +
+              '<div class="flex-1 text-sm leading-tight font-medium">' + p.productName + ' <span class="opacity-50 text-xs block">' + (p.consoleName||'Unk') + '</span></div>' +
+              '<div class="font-bold text-success whitespace-nowrap">$' + Number(p.price).toFixed(2) + '</div>' +
+            '</li>';
+         }).join('');
+         editSearchResults.classList.remove('hidden');
+      } else if (data.data) {
+        editCurrentCards = data.data;
+        editSearchResults.innerHTML = editCurrentCards.map((card, idx) => {
+            const price = card.tcgplayer?.prices?.normal?.market || card.tcgplayer?.prices?.holofoil?.market || 0;
+            return '<li class="p-3 hover:bg-base-200 cursor-pointer flex gap-3" onclick="selectEditCard('+idx+', \'tcgplayer\')">' +
+              '<img src="' + (card.images?.small || '') + '" class="w-6 h-8 object-contain bg-base-300 rounded-sm" />' +
+              '<div class="flex-1 text-sm leading-tight font-medium">' + card.name + ' <span class="opacity-50 text-xs block">' + (card.set?.name||'Unk') + '</span></div>' +
+              '<div class="font-bold text-success whitespace-nowrap">$' + Number(price).toFixed(2) + '</div>' +
+            '</li>';
+        }).join('');
+        editSearchResults.classList.remove('hidden');
+      }
+    }, 500);
+  });
+  
+  function selectEditCard(idx, source) {
+      if (source === 'pricecharting') {
+          const item = editCurrentCards[idx];
+          document.getElementById('edit_item_name').value = item.productName || '';
+          document.getElementById('edit_item_set').value = item.consoleName || 'Sealed';
+          document.getElementById('edit_api_image_url').value = item.imageUri || '';
+          let pcUrl = item.url ? item.url : `https://www.pricecharting.com/game/${(item.consoleName||'').toLowerCase().replace(/[^a-z0-9]+/g, '-')}/${(item.productName||'').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+          document.getElementById('edit_api_tcgplayer_url').value = pcUrl;
+      } else {
+          const card = editCurrentCards[idx];
+          document.getElementById('edit_item_name').value = card.name || '';
+          document.getElementById('edit_item_set').value = card.set?.name || 'Unknown';
+          document.getElementById('edit_api_image_url').value = card.images?.small || '';
+          document.getElementById('edit_api_tcgplayer_url').value = card.tcgplayer?.url || '';
+      }
+      editSearchInput.value = '';
+      editSearchResults.classList.add('hidden');
+  }
+</script>
+
 <!-- Record Trade Modal -->
 <dialog id="record_trade_modal" class="modal modal-bottom sm:modal-middle">
   <div class="modal-box w-11/12 max-w-4xl p-0 overflow-visible">
@@ -267,77 +437,49 @@
     <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-8 divide-y md:divide-y-0 md:divide-x divide-base-300">
       
       <!-- MY OFFER -->
-      <div class="space-y-4 pb-6 md:pb-0 pr-0 md:pr-4">
-        <h4 class="font-extrabold uppercase text-xs tracking-wider text-error">My Offer (Trading Away)</h4>
+      <div class="space-y-4 pb-6 md:pb-0 pr-0 md:pr-4 flex flex-col">
+        <div class="flex justify-between items-end">
+            <h4 class="font-extrabold uppercase text-xs tracking-wider text-error">My Offer (Trading Away)</h4>
+            <button type="button" class="btn btn-xs btn-outline btn-error" onclick="addTradeGivingRow()">+ Add Item</button>
+        </div>
         
-        <label class="form-control w-full">
-          <div class="label"><span class="label-text text-sm">Item Giving</span></div>
-          <select name="giving_item_id" id="trade_giving_select" class="select select-bordered select-sm w-full" onchange="updateTradeVal(true)" required>
-            <option value="" disabled selected>Select from inventory...</option>
-            <% if(typeof inventory !== 'undefined') { inventory.forEach(i => { %>
-              <% let stock = i.lots.reduce((a,b)=>a+b.qty,0); if(stock > 0) { %>
-              <option value="<%= i.id %>" data-price="<%= i.market_price || 0 %>"><%= i.name %> (<%= i.set %>)</option>
-              <% } %>
-            <% }) } %>
-          </select>
-        </label>
-        
-        <div class="flex gap-2">
+        <div id="trade_giving_container" class="space-y-4">
+            <!-- Dynamic rows will be inserted here -->
+        </div>
+
+        <div class="flex gap-2 items-center justify-end mt-2">
             <label class="form-control w-1/3">
-              <div class="label"><span class="label-text text-[10px]">Unit Price</span></div>
-              <input type="number" step="0.01" name="giving_price_override" id="trade_giving_price" value="0.00" class="input input-bordered input-sm w-full text-base-content/80" oninput="updateTradeVal()" />
-            </label>
-            <label class="form-control w-1/3">
-              <div class="label"><span class="label-text text-[10px]">Qty Giving</span></div>
-              <input type="number" name="giving_qty" id="trade_giving_qty" value="1" min="1" class="input input-bordered input-sm w-full" oninput="updateTradeVal()" required />
-            </label>
-            <label class="form-control w-1/3">
-              <div class="label"><span class="label-text text-[10px]">Cash Give(CAD)</span></div>
-              <input type="number" step="0.01" name="cash_given" id="trade_cash_given" value="0" class="input input-bordered input-sm w-full" oninput="updateTradeVal()" />
+              <div class="label"><span class="label-text text-[10px] uppercase font-bold text-base-content/60">Cash Give(CAD)</span></div>
+              <input type="number" step="0.01" name="cash_given" id="trade_cash_given" value="0.00" class="input input-sm input-bordered w-full" oninput="updateTradeVal()" />
             </label>
         </div>
         
-        <div class="mt-4 pt-4 border-t border-base-200 text-right">
-          <span class="text-xs uppercase opacity-60">Value Leaving:</span>
+        <div class="mt-auto pt-4 border-t border-base-200 text-right">
+          <span class="text-xs uppercase opacity-60">Value Leaving (Market):</span>
           <div class="text-xl font-bold text-error" id="trade_giving_total">$0.00</div>
         </div>
       </div>
       
       <!-- THEY OFFER -->
-      <div class="space-y-4 pt-6 md:pt-0 pl-0 md:pl-4">
-        <h4 class="font-extrabold uppercase text-xs tracking-wider text-success">Their Offer (Receiving)</h4>
+      <div class="space-y-4 pt-6 md:pt-0 pl-0 md:pl-4 flex flex-col">
+        <div class="flex justify-between items-end">
+            <h4 class="font-extrabold uppercase text-xs tracking-wider text-success">Their Offer (Receiving)</h4>
+            <button type="button" class="btn btn-xs btn-outline btn-success" onclick="addTradeReceivingRow()">+ Add Item</button>
+        </div>
         
-        <label class="form-control w-full relative z-[80]">
-          <div class="label"><span class="label-text text-sm w-full flex justify-between items-center">Item Receiving <select id="trade_data_source" name="data_source" class="select select-bordered select-xs ml-2 border-base-300 bg-base-200"><option value="tcgplayer">TCGPlayer</option><option value="pricecharting">PriceChart</option><option value="manual">Manual/DB</option></select></span></div>
-          <input type="text" id="trade_search_input" name="receiving_name" placeholder="Search API..." class="input input-bordered input-sm w-full" autocomplete="off" required />
-          <ul id="trade_search_results" class="absolute top-16 left-0 w-full bg-base-100 shadow-2xl rounded-lg max-h-60 overflow-y-auto hidden border border-base-300 z-[100] mt-1"></ul>
-          
-          <div id="trade_link_container" class="mt-1 text-[11px] hidden text-right w-full">
-            <a href="#" id="trade_reference_link" target="_blank" class="link link-primary opacity-80 hover:opacity-100">Verify Market Link &UpperRightArrow;</a>
-          </div>
-
-          <input type="hidden" id="trade_receiving_set" name="receiving_set" value="">
-          <input type="hidden" id="trade_receiving_image" name="receiving_image" value="">
-          <input type="hidden" id="trade_receiving_tcgplayer" name="receiving_tcgplayer" value="">
-        </label>
+        <div id="trade_receiving_container" class="space-y-4">
+            <!-- Dynamic rows will be inserted here -->
+        </div>
         
-        <div class="flex gap-2">
+        <div class="flex gap-2 items-center justify-end mt-2">
             <label class="form-control w-1/3">
-              <div class="label"><span class="label-text text-[10px]">Unit Price</span></div>
-              <input type="number" step="0.01" id="trade_receiving_price" name="receiving_price" value="0.00" class="input input-bordered input-sm w-full" oninput="updateTradeVal()" required />
-            </label>
-            <label class="form-control w-1/3">
-              <div class="label"><span class="label-text text-[10px]">Qty Receiving</span></div>
-              <input type="number" name="receiving_qty" id="trade_receiving_qty" value="1" min="1" class="input input-bordered input-sm w-full" oninput="updateTradeVal()" />
-            </label>
-            <label class="form-control w-1/3">
-              <div class="label"><span class="label-text text-[10px]">Cash Rcv(CAD)</span></div>
-              <input type="number" step="0.01" name="cash_received" id="trade_cash_received" value="0" class="input input-bordered input-sm w-full" oninput="updateTradeVal()" />
+              <div class="label"><span class="label-text text-[10px] uppercase font-bold text-base-content/60">Cash Rcv(CAD)</span></div>
+              <input type="number" step="0.01" name="cash_received" id="trade_cash_received" value="0.00" class="input input-sm input-bordered w-full" oninput="updateTradeVal()" />
             </label>
         </div>
         
-        <div class="mt-4 pt-4 border-t border-base-200 text-right">
-          <span class="text-xs uppercase opacity-60">Value Gaining:</span>
+        <div class="mt-auto pt-4 border-t border-base-200 text-right">
+          <span class="text-xs uppercase opacity-60">Value Gaining (Market):</span>
           <div class="text-xl font-bold text-success" id="trade_receiving_total">$0.00</div>
         </div>
       </div>
@@ -390,11 +532,29 @@
   </div>
 </dialog>
 
+<!-- Import CSV Modal -->
+<dialog id="import_csv_modal" class="modal modal-bottom sm:modal-middle">
+  <div class="modal-box">
+    <h3 class="font-bold text-lg">Import Inventory CSV</h3>
+    <p class="py-2 text-sm opacity-70">Upload a CSV file to bulk import inventory items.</p>
+    <form method="POST" action="/inventory/import-csv" enctype="multipart/form-data" class="py-4 space-y-4">
+      <label class="form-control w-full">
+        <div class="label"><span class="label-text">Select CSV File</span></div>
+        <input type="file" name="csv_file" accept=".csv" class="file-input file-input-bordered file-input-secondary w-full" required />
+      </label>
+      <div class="modal-action mt-6">
+        <button type="button" class="btn mr-2" onclick="window.import_csv_modal.close()">Cancel</button>
+        <button type="submit" class="btn btn-secondary">Upload CSV</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
 <!-- Record Sale Modal -->
 <dialog id="record_sale_modal" class="modal modal-bottom sm:modal-middle">
   <div class="modal-box">
     <h3 class="font-bold text-lg">Record a Sale (Manual)</h3>
-    <form method="POST" action="/sales/add" class="py-4 space-y-4">
+    <form method="POST" action="/sales/add" enctype="multipart/form-data" class="py-4 space-y-4">
       <label class="form-control w-full">
         <div class="label"><span class="label-text">Select Item</span></div>
         <select name="item_id" class="select select-bordered" required>
@@ -419,10 +579,27 @@
           <input type="number" step="0.01" name="shipping_cost" placeholder="0.00" class="input input-bordered w-full" />
         </label>
       </div>
+      
+      <div class="flex gap-2 w-full">
+        <label class="form-control w-1/2">
+          <div class="label"><span class="label-text text-xs font-bold text-base-content/70">Conducted By</span></div>
+          <select name="person" id="sale_person_select" class="select select-bordered" onchange="document.getElementById('sale_person_override').classList.toggle('hidden', this.value !== 'Other')" required>
+            <option value="Curtis">Curtis</option>
+            <option value="Michael">Michael</option>
+            <option value="Other">Other (Manual)</option>
+          </select>
+        </label>
+        <label class="form-control w-1/2 hidden" id="sale_person_override">
+          <div class="label"><span class="label-text text-xs text-base-content/70">Custom Name</span></div>
+          <input type="text" name="person_override" placeholder="Typing name..." class="input input-bordered w-full" />
+        </label>
+      </div>
+
       <label class="form-control w-full">
-        <div class="label"><span class="label-text text-xs font-bold text-base-content/70">Conducted By (Person)</span></div>
-        <input type="text" name="person" placeholder="e.g. Curtis..." class="input input-bordered w-full" />
+        <div class="label"><span class="label-text text-xs font-bold text-base-content/70">Receipt / Proof Image (Optional)</span></div>
+        <input type="file" name="sale_image" accept="image/*" class="file-input file-input-bordered file-input-sm w-full" />
       </label>
+
       <div class="modal-action mt-6">
         <button type="button" class="btn mr-2" onclick="window.record_sale_modal.close()">Cancel</button>
         <button type="submit" class="btn btn-primary">Save Sale</button>
@@ -444,93 +621,184 @@
     }
   });
 
-  const tradeSearchInput = document.getElementById('trade_search_input');
-  const tradeSearchResults = document.getElementById('trade_search_results');
-  let tradeCurrentCards = [];
-  let tradeSearchTimeout;
+  // Dynamic Trade Rows
+  let tradeCurrentCardsMap = {};
+  let tradeSearchTimeouts = {};
 
-  tradeSearchInput?.addEventListener('input', (e) => {
-    clearTimeout(tradeSearchTimeout);
-    const q = e.target.value.trim();
-    const source = document.getElementById('trade_data_source').value;
-    if (q.length < 3 || source === 'manual') { tradeSearchResults.classList.add('hidden'); return; }
-    
-    tradeSearchTimeout = setTimeout(async () => {
-      const endpoint = source === 'pricecharting' ? '/api/search/sealed?q=' : '/api/search?q=';
-      const res = await fetch(endpoint + encodeURIComponent(q));
-      const data = await res.json();
+  function addTradeGivingRow() {
+      const container = document.getElementById('trade_giving_container');
+      const idx = container.children.length;
+      const html = `
+        <div class="trade-giving-row border border-base-200 p-2 rounded-xl relative">
+          ${idx > 0 ? `<button type="button" class="btn btn-xs btn-circle btn-ghost absolute -top-2 -right-2 bg-base-100 border border-base-300 text-error shadow-sm z-50" onclick="this.parentElement.remove(); updateTradeVal();">✕</button>` : ``}
+          <label class="form-control w-full">
+            <div class="label pt-0 pb-1"><span class="label-text text-xs">Item Giving</span></div>
+            <select name="giving_item_id[]" class="trade-giving-select select select-bordered select-sm w-full" onchange="updateTradeVal(this)" required>
+              <option value="" disabled selected>Select from inventory...</option>
+              <% if(typeof inventory !== 'undefined') { inventory.forEach(i => { let stock = i.lots.reduce((a,b)=>a+b.qty,0); if(stock > 0) { %><option value="<%= i.id %>" data-price="<%= i.market_price || 0 %>"><%= i.name %> (<%= i.set %>) - Est. $<%= i.market_price ? i.market_price.toFixed(2) : '0.00' %></option><% }}) } %>
+            </select>
+          </label>
+          <div class="flex gap-2 mt-2">
+              <label class="form-control w-1/2">
+                <div class="label py-0 pb-1"><span class="label-text text-[10px]">Unit Market Price</span></div>
+                <input type="number" step="0.01" name="giving_price_override[]" value="0.00" class="trade-giving-price input input-bordered input-sm w-full text-base-content/80" oninput="updateTradeVal()" />
+              </label>
+              <label class="form-control w-1/2">
+                <div class="label py-0 pb-1"><span class="label-text text-[10px]">Qty Giving</span></div>
+                <input type="number" name="giving_qty[]" value="1" min="1" class="trade-giving-qty input input-bordered input-sm w-full" oninput="updateTradeVal()" required />
+              </label>
+          </div>
+        </div>
+      `;
+      container.insertAdjacentHTML('beforeend', html);
+  }
+
+  function addTradeReceivingRow() {
+      const container = document.getElementById('trade_receiving_container');
+      const idx = Date.now() + Math.floor(Math.random() * 1000); // Unique ID
+      const html = `
+        <div class="trade-receiving-row border border-base-200 p-2 rounded-xl relative" data-row="${idx}">
+          ${container.children.length > 0 ? `<button type="button" class="btn btn-xs btn-circle btn-ghost absolute -top-2 -right-2 bg-base-100 border border-base-300 text-error shadow-sm z-50" onclick="this.parentElement.remove(); updateTradeVal();">✕</button>` : ``}
+          <label class="form-control w-full relative z-[80]">
+            <div class="label pt-0 pb-1"><span class="label-text text-xs w-full flex justify-between items-center">Item Receiving <select class="trade-data-source select select-bordered select-xs ml-2 border-base-300 bg-base-200"><option value="tcgplayer">TCGPlayer</option><option value="pricecharting">PriceChart</option><option value="manual">Manual/DB</option></select></span></div>
+            <input type="text" name="receiving_name[]" placeholder="Search API..." class="trade-search-input input input-bordered input-sm w-full" autocomplete="off" required />
+            <ul class="trade-search-results absolute top-[60px] left-0 w-full bg-base-100 shadow-2xl rounded-lg max-h-60 overflow-y-auto hidden border border-base-300 z-[100] mt-1"></ul>
+            
+            <div class="trade-link-container mt-1 text-[11px] hidden text-right w-full">
+              <a href="#" target="_blank" class="trade-reference-link link link-primary opacity-80 hover:opacity-100">Verify Market Link &UpperRightArrow;</a>
+            </div>
+
+            <input type="hidden" class="trade-receiving-set" name="receiving_set[]" value="">
+            <input type="hidden" class="trade-receiving-image" name="receiving_image[]" value="">
+            <input type="hidden" class="trade-receiving-tcgplayer" name="receiving_tcgplayer[]" value="">
+          </label>
+          <div class="flex gap-2 mt-2">
+              <label class="form-control w-1/2">
+                <div class="label py-0 pb-1"><span class="label-text text-[10px]">Unit Market Price</span></div>
+                <input type="number" step="0.01" name="receiving_price[]" value="0.00" class="trade-receiving-price input input-bordered input-sm w-full" oninput="updateTradeVal()" required />
+              </label>
+              <label class="form-control w-1/2">
+                <div class="label py-0 pb-1"><span class="label-text text-[10px]">Qty Receiving</span></div>
+                <input type="number" name="receiving_qty[]" value="1" min="1" class="trade-receiving-qty input input-bordered input-sm w-full" oninput="updateTradeVal()" required />
+              </label>
+          </div>
+        </div>
+      `;
+      container.insertAdjacentHTML('beforeend', html);
+  }
+
+  document.addEventListener('input', (e) => {
+      if(!e.target.classList.contains('trade-search-input')) return;
       
-      if (source === 'pricecharting' && Array.isArray(data)) {
-         tradeCurrentCards = data;
-         tradeSearchResults.innerHTML = tradeCurrentCards.map((p, idx) => {
-            return '<li class="p-3 hover:bg-base-200 cursor-pointer flex gap-3" onclick="selectTradeCard('+idx+', \'pricecharting\')">' +
-              '<div class="flex-1 text-sm leading-tight font-medium">' + p.productName + ' <span class="opacity-50 text-xs block">' + (p.consoleName||'Unk') + '</span></div>' +
-              '<div class="font-bold text-success whitespace-nowrap">$' + Number(p.price).toFixed(2) + '</div>' +
-            '</li>';
-         }).join('');
-         tradeSearchResults.classList.remove('hidden');
-      } else if (data.data) {
-        tradeCurrentCards = data.data;
-        tradeSearchResults.innerHTML = tradeCurrentCards.map((card, idx) => {
-            const price = card.tcgplayer?.prices?.normal?.market || card.tcgplayer?.prices?.holofoil?.market || 0;
-            return '<li class="p-3 hover:bg-base-200 cursor-pointer flex gap-3" onclick="selectTradeCard('+idx+', \'tcgplayer\')">' +
-              '<img src="' + (card.images?.small || '') + '" class="w-6 h-8 object-contain bg-base-300 rounded-sm" />' +
-              '<div class="flex-1 text-sm leading-tight font-medium">' + card.name + ' <span class="opacity-50 text-xs block">' + (card.set?.name||'Unk') + '</span></div>' +
-              '<div class="font-bold text-success whitespace-nowrap">$' + Number(price).toFixed(2) + '</div>' +
-            '</li>';
-        }).join('');
-        tradeSearchResults.classList.remove('hidden');
-      }
-    }, 500);
+      const row = e.target.closest('.trade-receiving-row');
+      const rowId = row.dataset.row;
+      const source = row.querySelector('.trade-data-source').value;
+      const resultsUl = row.querySelector('.trade-search-results');
+      
+      clearTimeout(tradeSearchTimeouts[rowId]);
+      const q = e.target.value.trim();
+      
+      if (q.length < 3 || source === 'manual') { resultsUl.classList.add('hidden'); return; }
+      
+      tradeSearchTimeouts[rowId] = setTimeout(async () => {
+          const endpoint = source === 'pricecharting' ? '/api/search/sealed?q=' : '/api/search?q=';
+          const res = await fetch(endpoint + encodeURIComponent(q));
+          const data = await res.json();
+          
+          if (source === 'pricecharting' && Array.isArray(data)) {
+             tradeCurrentCardsMap[rowId] = data;
+             resultsUl.innerHTML = data.map((p, idx) => {
+                return '<li class="p-3 hover:bg-base-200 cursor-pointer flex gap-3" onclick="selectTradeCard('+idx+', \''+rowId+'\', \'pricecharting\')">' +
+                  '<div class="flex-1 text-sm leading-tight font-medium">' + p.productName + ' <span class="opacity-50 text-xs block">' + (p.consoleName||'Unk') + '</span></div>' +
+                  '<div class="font-bold text-success whitespace-nowrap">$' + Number(p.price).toFixed(2) + '</div>' +
+                '</li>';
+             }).join('');
+             resultsUl.classList.remove('hidden');
+          } else if (data.data) {
+             tradeCurrentCardsMap[rowId] = data.data;
+             resultsUl.innerHTML = data.data.map((card, idx) => {
+                const price = card.tcgplayer?.prices?.normal?.market || card.tcgplayer?.prices?.holofoil?.market || 0;
+                return '<li class="p-3 hover:bg-base-200 cursor-pointer flex gap-3" onclick="selectTradeCard('+idx+', \''+rowId+'\', \'tcgplayer\')">' +
+                  '<img src="' + (card.images?.small || '') + '" class="w-6 h-8 object-contain bg-base-300 rounded-sm" />' +
+                  '<div class="flex-1 text-sm leading-tight font-medium">' + card.name + ' <span class="opacity-50 text-xs block">' + (card.set?.name||'Unk') + '</span></div>' +
+                  '<div class="font-bold text-success whitespace-nowrap">$' + Number(price).toFixed(2) + '</div>' +
+                '</li>';
+             }).join('');
+             resultsUl.classList.remove('hidden');
+          }
+      }, 500);
   });
-  
-  function selectTradeCard(idx, source) {
+
+  function selectTradeCard(idx, rowId, source) {
+      const row = document.querySelector(`.trade-receiving-row[data-row="${rowId}"]`);
+      if(!row) return;
+      
+      const cards = tradeCurrentCardsMap[rowId];
       if (source === 'pricecharting') {
-          const item = tradeCurrentCards[idx];
-          document.getElementById('trade_search_input').value = item.productName;
-          document.getElementById('trade_receiving_price').value = item.price.toFixed(2);
-          document.getElementById('trade_receiving_set').value = item.consoleName || 'Sealed';
-          document.getElementById('trade_receiving_image').value = '';
-          document.getElementById('trade_receiving_tcgplayer').value = item.url || '';
+          const item = cards[idx];
+          row.querySelector('.trade-search-input').value = item.productName || '';
+          row.querySelector('.trade-receiving-price').value = item.price.toFixed(2);
+          row.querySelector('.trade-receiving-set').value = item.consoleName || 'Sealed';
+          row.querySelector('.trade-receiving-image').value = '';
+          row.querySelector('.trade-receiving-tcgplayer').value = item.url || '';
           
           if(item.url) {
-            document.getElementById('trade_link_container').classList.remove('hidden');
-            document.getElementById('trade_reference_link').href = item.url;
+            row.querySelector('.trade-link-container').classList.remove('hidden');
+            row.querySelector('.trade-reference-link').href = item.url;
           }
       } else {
-          const card = tradeCurrentCards[idx];
+          const card = cards[idx];
           const price = card.tcgplayer?.prices?.normal?.market || card.tcgplayer?.prices?.holofoil?.market || 0;
-          document.getElementById('trade_search_input').value = card.name;
-          document.getElementById('trade_receiving_price').value = price.toFixed(2);
-          document.getElementById('trade_receiving_set').value = card.set?.name || 'Unknown';
-          document.getElementById('trade_receiving_image').value = card.images?.small || '';
-          document.getElementById('trade_receiving_tcgplayer').value = card.tcgplayer?.url || '';
+          row.querySelector('.trade-search-input').value = card.name || '';
+          row.querySelector('.trade-receiving-price').value = price.toFixed(2);
+          row.querySelector('.trade-receiving-set').value = card.set?.name || 'Unknown';
+          row.querySelector('.trade-receiving-image').value = card.images?.small || '';
+          row.querySelector('.trade-receiving-tcgplayer').value = card.tcgplayer?.url || '';
           
           if (card.tcgplayer?.url) {
-              document.getElementById('trade_link_container').classList.remove('hidden');
-              document.getElementById('trade_reference_link').href = card.tcgplayer.url;
+              row.querySelector('.trade-link-container').classList.remove('hidden');
+              row.querySelector('.trade-reference-link').href = card.tcgplayer.url;
           }
       }
-      tradeSearchResults.classList.add('hidden');
+      row.querySelector('.trade-search-results').classList.add('hidden');
       updateTradeVal();
   }
-  
-  function updateTradeVal(sourceChanged = false) {
-      if (sourceChanged) {
-        const gSel = document.getElementById('trade_giving_select');
-        document.getElementById('trade_giving_price').value = parseFloat(gSel.options[gSel.selectedIndex]?.dataset.price || 0).toFixed(2);
+
+  function updateTradeVal(selectElementChanged = null) {
+      if (selectElementChanged && selectElementChanged.classList.contains('trade-giving-select')) {
+          const row = selectElementChanged.closest('.trade-giving-row');
+          if(row) {
+             const priceInput = row.querySelector('.trade-giving-price');
+             priceInput.value = parseFloat(selectElementChanged.options[selectElementChanged.selectedIndex]?.dataset.price || 0).toFixed(2);
+          }
       }
 
-      const gPrice = parseFloat(document.getElementById('trade_giving_price').value || 0);
-      const gQty = parseInt(document.getElementById('trade_giving_qty').value || 1);
-      const cGiv = parseFloat(document.getElementById('trade_cash_given').value || 0);
-      document.getElementById('trade_giving_total').innerText = '$' + ((gPrice * gQty) + cGiv).toFixed(2);
+      let givingTotal = 0;
+      document.querySelectorAll('.trade-giving-row').forEach(row => {
+          const p = parseFloat(row.querySelector('.trade-giving-price').value || 0);
+          const q = parseInt(row.querySelector('.trade-giving-qty').value || 1);
+          givingTotal += p * q;
+      });
+      const cGiv = parseFloat(document.getElementById('trade_cash_given')?.value || 0);
+      document.getElementById('trade_giving_total').innerText = '$' + (givingTotal + cGiv).toFixed(2);
       
-      const rPrice = parseFloat(document.getElementById('trade_receiving_price').value || 0);
-      const rQty = parseInt(document.getElementById('trade_receiving_qty').value || 1);
-      const cRec = parseFloat(document.getElementById('trade_cash_received').value || 0);
-      document.getElementById('trade_receiving_total').innerText = '$' + ((rPrice * rQty) + cRec).toFixed(2);
+      let receivingTotal = 0;
+      document.querySelectorAll('.trade-receiving-row').forEach(row => {
+          const p = parseFloat(row.querySelector('.trade-receiving-price').value || 0);
+          const q = parseInt(row.querySelector('.trade-receiving-qty').value || 1);
+          receivingTotal += p * q;
+      });
+      const cRec = parseFloat(document.getElementById('trade_cash_received')?.value || 0);
+      document.getElementById('trade_receiving_total').innerText = '$' + (receivingTotal + cRec).toFixed(2);
   }
+
+  // Initialize trade rows on load
+  window.addEventListener('DOMContentLoaded', () => {
+    if(document.getElementById('trade_giving_container')) {
+        addTradeGivingRow();
+        addTradeReceivingRow();
+    }
+  });
   let bulkCart = [];
   
   function switchAddMode(mode) {

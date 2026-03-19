@@ -1,6 +1,14 @@
 const express = require('express');
-const axios = require('axios');
+const fetchWithTimeout = async (url, options = {}) => {
+    const { timeout = 8000, ...fetchOptions } = options;
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    const response = await fetch(url, { ...fetchOptions, signal: controller.signal });
+    clearTimeout(id);
+    return response;
+};
 const multer = require('multer');
+const csv = require('csv-parser');
 const fs = require('fs');
 const path = require('path');
 const basicAuth = require('express-basic-auth');
@@ -16,8 +24,6 @@ const storage = multer.diskStorage({
     filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname.replace(/[^a-zA-Z0-9.]/g, ''))
 });
 const upload = multer({ storage });
-
-initDB().catch(console.error);
 
 app.set('view engine', 'ejs');
 app.use(express.static('public'));
@@ -42,7 +48,11 @@ app.get('/', async (req, res) => {
         let activity = [];
         sales.forEach(s => activity.push({ ...s, log_type: 'sale' }));
         shipping.forEach(s => activity.push({ ...s, log_type: 'shipping' }));
-        activity.sort((a, b) => new Date(b.date) - new Date(a.date));
+        activity.sort((a, b) => {
+            const dA = a.date ? new Date(a.date).valueOf() : 0;
+            const dB = b.date ? new Date(b.date).valueOf() : 0;
+            return (isNaN(dB) ? 0 : dB) - (isNaN(dA) ? 0 : dA);
+        });
         
         let range = req.query.range || '30';
         let filteredActivity = activity;
@@ -63,7 +73,7 @@ app.get('/', async (req, res) => {
         const totalShipping = shipping.reduce((sum, s) => sum + (parseFloat(s.cost) || 0), 0);
         
         res.render('dashboard', { inventory, activity: filteredActivity, sales: filteredSales, persons, selectedPerson, range, totalValue, totalShipping, currentPath: '/' });
-    } catch(e) { console.error('Dashboard Error:', e); res.send('Error loading dashboard'); }
+    } catch(e) { console.error('Dashboard Error:', e); res.send('Error loading dashboard: ' + e.message + '\n' + e.stack); }
 });
 
 app.post('/shipping/apply', async (req, res) => {
@@ -120,9 +130,10 @@ async function getUsdToCadRate() {
     const CACHE_DURATION = 4 * 60 * 60 * 1000; // 4 hours
     if (Date.now() - lastRateFetch > CACHE_DURATION) {
         try {
-            const res = await axios.get('https://open.er-api.com/v6/latest/USD');
-            if (res.data && res.data.rates && res.data.rates.CAD) {
-                cachedExchangeRate = res.data.rates.CAD;
+            const res = await fetchWithTimeout('https://open.er-api.com/v6/latest/USD');
+            const data = await res.json();
+            if (data && data.rates && data.rates.CAD) {
+                cachedExchangeRate = data.rates.CAD;
                 lastRateFetch = Date.now();
                 console.log('Updated USD/CAD rate:', cachedExchangeRate);
             }
@@ -145,11 +156,21 @@ app.get('/api/search', async (req, res) => {
         const { q } = req.query;
         if (!q || q.length < 3) return res.json({ data: [] });
         
-        const rate = await getUsdToCadRate();
-        const response = await axios.get(`https://api.pokemontcg.io/v2/cards?q=name:"${encodeURIComponent(q)}*"&pageSize=10`, { timeout: 8000 });
+        const cleanQ = q.replace(/\[.*?\]|\(.*?\)/g, "").trim();
         
-        if (response.data.data) {
-            response.data.data = response.data.data.map(card => {
+        const rate = await getUsdToCadRate();
+        const urlObj = new URL('https://api.pokemontcg.io/v2/cards');
+        urlObj.searchParams.append('q', `name:"${cleanQ}*"`);
+        urlObj.searchParams.append('pageSize', '25');
+        console.log('EXPRESS TRACE FETCH URL:', urlObj.toString());
+        const response = await fetchWithTimeout(urlObj.toString(), {
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            timeout: 12000
+        });
+        const data = await response.json();
+        
+        if (data.data) {
+            data.data = data.data.map(card => {
                 if (card.tcgplayer && card.tcgplayer.prices) {
                     for (const grade of Object.keys(card.tcgplayer.prices)) {
                         if (card.tcgplayer.prices[grade].market) {
@@ -160,7 +181,7 @@ app.get('/api/search', async (req, res) => {
                 return card;
             });
         }
-        res.json(response.data);
+        res.json(data);
     } catch (err) {
         console.error('Search API Error:', err.message);
         res.status(500).json({ error: 'Failed to fetch cards. Please try again later.' });
@@ -173,13 +194,13 @@ app.get('/api/search/sealed', async (req, res) => {
         if (!q || q.length < 3) return res.json({ data: [] });
         
         const rate = await getUsdToCadRate();
-        const response = await axios.get(`https://www.pricecharting.com/search-products?q=${encodeURIComponent(q)}&type=prices`, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-            timeout: 8000
+        const response = await fetchWithTimeout(`https://www.pricecharting.com/search-products?q=${encodeURIComponent(q)}&type=prices`, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
         });
+        const data = await response.json();
         
-        if(response.data && response.data.products) {
-            const mapped = response.data.products.slice(0, 10).map(p => {
+        if(data && data.products) {
+            const mapped = data.products.slice(0, 10).map(p => {
                 const numericPrice = parseFloat((p.price1 || '').replace(/[^0-9.]/g, ''));
                 const consoleSlug = (p.consoleName || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
                 const productSlug = (p.productName || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -204,8 +225,13 @@ app.get('/api/search/sealed', async (req, res) => {
 });
 
 app.get('/inventory', async (req, res) => {
-    const view = req.query.view || 'list';
-    res.render('inventory', { view, currentPath: req.path, inventory: await readHydratedInventory() });
+    try {
+        const view = req.query.view || 'list';
+        res.render('inventory', { view, currentPath: req.path, inventory: await readHydratedInventory() });
+    } catch (e) {
+        console.error('Inventory View Error:', e);
+        res.status(500).send('Error loading inventory.');
+    }
 });
 
 app.post('/inventory/bulk-shipment', async (req, res) => {
@@ -272,47 +298,295 @@ app.post('/inventory/add', upload.single('image_upload'), async (req, res) => {
     if(isNaN(parsedMarketPrice)) parsedMarketPrice = null;
 
     try {
-        const { rows } = await db.query('SELECT id FROM inventory WHERE lower(name) = $1 AND set_name = $2', [name.toLowerCase(), set_name || 'Custom']);
-        const existingItem = rows[0];
-        const insertLotQ = 'INSERT INTO lots (inventory_id, qty, cog, date) VALUES ($1, $2, $3, $4)';
-        
-        let unitCog = parseFloat(cog) || 0;
-        const parseShipping = parseFloat(shipping_cost) || 0;
-        if (parseShipping > 0) {
-            unitCog += (parseShipping / parseInt(qty));
-        }
-
-        if (existingItem) {
-            await db.query(insertLotQ, [existingItem.id, parseInt(qty), unitCog, new Date().toISOString()]);
+        const client = await db.connect();
+        try {
+            await client.query('BEGIN');
+            const { rows } = await client.query('SELECT id FROM inventory WHERE lower(name) = $1 AND set_name = $2 FOR UPDATE', [name.toLowerCase(), set_name || 'Custom']);
+            const existingItem = rows[0];
+            const insertLotQ = 'INSERT INTO lots (inventory_id, qty, cog, date) VALUES ($1, $2, $3, $4)';
             
-            let updates = [];
-            let params = [];
-            let idx = 1;
-            if(finalImageUrl) { updates.push(`image = $${idx++}`); params.push(finalImageUrl); }
-            if(data_source) { updates.push(`data_source = $${idx++}`); params.push(data_source); }
-            if(tcgplayer_url) { updates.push(`tcgplayer_url = $${idx++}`); params.push(tcgplayer_url); }
-            if(parsedMarketPrice !== null) { updates.push(`market_price = $${idx++}`); params.push(parsedMarketPrice); }
-            if(req.body.category) { updates.push(`category = $${idx++}`); params.push(req.body.category); }
-            
-            if (updates.length > 0) {
-                params.push(existingItem.id);
-                await db.query(`UPDATE inventory SET ${updates.join(', ')} WHERE id = $${idx}`, params);
+            let unitCog = parseFloat(cog) || 0;
+            const parseShipping = parseFloat(shipping_cost) || 0;
+            if (parseShipping > 0) {
+                unitCog += (parseShipping / parseInt(qty));
             }
-        } else {
-            const { rows: ir } = await db.query(
-                `INSERT INTO inventory (name, set_name, condition, data_source, image, tcgplayer_url, market_price, category) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-                [name, set_name || 'Custom', condition, data_source || 'manual', finalImageUrl || '', tcgplayer_url || '', parsedMarketPrice, req.body.category || 'Singles']
-            );
-            await db.query(insertLotQ, [ir[0].id, parseInt(qty), unitCog, new Date().toISOString()]);
+
+            if (existingItem) {
+                await client.query(insertLotQ, [existingItem.id, parseInt(qty), unitCog, new Date().toISOString()]);
+                
+                let updates = [];
+                let params = [];
+                let idx = 1;
+                if(finalImageUrl) { updates.push(`image = $${idx++}`); params.push(finalImageUrl); }
+                if(data_source) { updates.push(`data_source = $${idx++}`); params.push(data_source); }
+                if(tcgplayer_url) { updates.push(`tcgplayer_url = $${idx++}`); params.push(tcgplayer_url); }
+                if(parsedMarketPrice !== null) { updates.push(`market_price = $${idx++}`); params.push(parsedMarketPrice); }
+                if(req.body.category) { updates.push(`category = $${idx++}`); params.push(req.body.category); }
+                
+                if (updates.length > 0) {
+                    params.push(existingItem.id);
+                    await client.query(`UPDATE inventory SET ${updates.join(', ')} WHERE id = $${idx}`, params);
+                }
+            } else {
+                const { rows: ir } = await client.query(
+                    `INSERT INTO inventory (name, set_name, condition, data_source, image, tcgplayer_url, market_price, category) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+                    [name, set_name || 'Custom', condition, data_source || 'manual', finalImageUrl || '', tcgplayer_url || '', parsedMarketPrice, req.body.category || 'Singles']
+                );
+                await client.query(insertLotQ, [ir[0].id, parseInt(qty), unitCog, new Date().toISOString()]);
+            }
+            await client.query('COMMIT');
+        } catch(e) {
+            await client.query('ROLLBACK');
+            throw e;
+        } finally {
+            client.release();
         }
     } catch(e) { console.error('Add Inventory Error:', e); }
     
     res.redirect('/inventory');
 });
 
-app.post('/sales/add', async (req, res) => {
-    const { item_id, qty, price, shipping_cost, person } = req.body;
+// Helper for background sync without overwriting price
+async function triggerBackgroundTcgplayerSync(rows) {
+    for (const row of rows) {
+        try {
+            const rawName = row['Product Name'] || row['name'] || 'Unknown';
+            const rawSet = row['Set'] || row['set_name'] || '';
+            const category = row['Category'] || row['category'] || 'Singles';
+            
+            if (category !== 'Singles' && category !== 'Pokemon') continue; // only do this for cards
+            
+            const cleanName = rawName.replace(/\[.*?\]|\(.*?\)/g, "").trim();
+            const cleanSet = rawSet.replace(/\[.*?\]|\(.*?\)/g, "").trim();
+            
+            const { rows: existing } = await db.query('SELECT id, image, tcgplayer_url FROM inventory WHERE lower(name) = $1 AND set_name = $2', [rawName.toLowerCase(), rawSet || 'Custom']);
+            if (existing.length > 0) {
+                const item = existing[0];
+                if (!item.image || !item.tcgplayer_url) {
+                    let foundImg = '';
+                    let foundUrl = '';
+                    let foundSource = '';
+                    
+                    // Attempt 1: TCGPlayer Exact
+                    const qExact = `name:"${cleanName}"${cleanSet && cleanSet !== 'Custom' && cleanSet !== 'Unknown' ? ` set.name:"*${cleanSet}*"` : ''}`;
+                    let tcgUrl1 = new URL('https://api.pokemontcg.io/v2/cards');
+                    tcgUrl1.searchParams.append('q', qExact);
+                    tcgUrl1.searchParams.append('pageSize', '1');
+                    
+                    try {
+                        let res = await fetchWithTimeout(tcgUrl1.toString(), { headers: { 'User-Agent': 'Mozilla/5.0' } });
+                        let data = await res.json();
+                        if (data && data.data && data.data.length > 0) {
+                            foundImg = data.data[0].images?.small || '';
+                            foundUrl = data.data[0].tcgplayer?.url || '';
+                            foundSource = 'tcgplayer';
+                        }
+                    } catch(e) {}
+                    
+                    // Attempt 2: TCGPlayer Fuzzy Name Only
+                    if (!foundImg) {
+                        try {
+                            const firstWord = cleanName.split(' ')[0].replace(/[^a-zA-Z0-9]/g, '');
+                            const qFuzzy = `name:"*${firstWord}*"`;
+                            let tcgUrl2 = new URL('https://api.pokemontcg.io/v2/cards');
+                            tcgUrl2.searchParams.append('q', qFuzzy);
+                            tcgUrl2.searchParams.append('pageSize', '25'); 
+                            let res2 = await fetchWithTimeout(tcgUrl2.toString(), { headers: { 'User-Agent': 'Mozilla/5.0' } });
+                            let data2 = await res2.json();
+                            if (data2 && data2.data && data2.data.length > 0) {
+                                // Find best match manually by checking if the name is contained
+                                const match = data2.data.find(c => c.name.toLowerCase().includes(cleanName.toLowerCase())) || data2.data[0];
+                                foundImg = match.images?.small || '';
+                                foundUrl = match.tcgplayer?.url || '';
+                                foundSource = 'tcgplayer';
+                            }
+                        } catch(e) {}
+                    }
+                    
+                    // Attempt 3: PriceCharting Fallback
+                    if (!foundImg && cleanName && cleanName !== 'Unknown') {
+                        try {
+                            let pcUrl = `https://www.pricecharting.com/search-products?q=${encodeURIComponent(cleanName + ' ' + cleanSet)}&type=prices`;
+                            let res3 = await fetchWithTimeout(pcUrl, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+                            let data3 = await res3.json();
+                            if (data3 && data3.products && data3.products.length > 0) {
+                                foundImg = data3.products[0].imageUri || '';
+                                foundUrl = `https://www.pricecharting.com/game/${(data3.products[0].consoleName||'').toLowerCase().replace(/[^a-z0-9]+/g, '-')}/${(data3.products[0].productName||'').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+                                foundSource = 'pricecharting';
+                            }
+                        } catch(e) {}
+                    }
+                    
+                    if (foundImg) {
+                        await db.query('UPDATE inventory SET image = $1, tcgplayer_url = $2, data_source = $3 WHERE id = $4', [foundImg, foundUrl, foundSource, item.id]);
+                        console.log('Successfully found image for', cleanName, 'via', foundSource);
+                    } else {
+                        console.log('WARNING: Fully failed to find image for', cleanName);
+                    }
+                    await new Promise(r => setTimeout(r, 1500)); // sleep 1.5s between full fetches
+                }
+            }
+        } catch(e) {
+            console.error('Background sync failed for', row['Product Name'], e.message);
+        }
+    }
+}
+
+app.post('/inventory/edit', upload.single('edit_image_upload'), async (req, res) => {
+    try {
+        let { item_id, name, set_name, condition, category, market_price, qty, avg_cog, image_url, tcgplayer_url } = req.body;
+        
+        let parsedMarketPrice = parseFloat(market_price) || null;
+        let targetQty = parseInt(qty) || 0;
+        let parsedCog = parseFloat(avg_cog);
+        
+        let finalImageUrl = image_url;
+        if (req.file) finalImageUrl = '/uploads/' + req.file.filename;
+
+        const client = await db.connect();
+        try {
+            await client.query('BEGIN');
+            
+            // 1. Update Inventory Details
+            let updateQuery = `UPDATE inventory SET name = $1, set_name = $2, condition = $3, category = $4, market_price = $5`;
+            let queryParams = [name, set_name, condition, category, parsedMarketPrice];
+            let pIdx = 6;
+            
+            let extraUpdates = [];
+            if (finalImageUrl) { extraUpdates.push(`image = $${pIdx++}`); queryParams.push(finalImageUrl); }
+            if (tcgplayer_url) { extraUpdates.push(`tcgplayer_url = $${pIdx++}`); queryParams.push(tcgplayer_url); }
+            
+            if (extraUpdates.length > 0) {
+                updateQuery += `, ${extraUpdates.join(', ')}`;
+            }
+            updateQuery += ` WHERE id = $${pIdx}`;
+            queryParams.push(item_id);
+            
+            await client.query(updateQuery, queryParams);
+            
+            if (!isNaN(parsedCog)) {
+                await client.query('UPDATE lots SET cog = $1 WHERE inventory_id = $2', [parsedCog, item_id]);
+            }
+            
+            // 2. Quantity Reconciliation
+            const { rows: lots } = await client.query('SELECT id, qty FROM lots WHERE inventory_id = $1 AND qty > 0 ORDER BY id ASC', [item_id]);
+            let currentQty = lots.reduce((sum, l) => sum + l.qty, 0);
+            
+            if (targetQty > currentQty) {
+                let diff = targetQty - currentQty;
+                await client.query('INSERT INTO lots (inventory_id, qty, cog, date) VALUES ($1, $2, $3, $4)', 
+                                  [item_id, diff, !isNaN(parsedCog) ? parsedCog : 0.0, new Date().toISOString()]);
+            } else if (targetQty < currentQty) {
+                let diffToRemove = currentQty - targetQty;
+                for (let i = 0; i < lots.length && diffToRemove > 0; i++) {
+                    let lot = lots[i];
+                    if (lot.qty <= diffToRemove) {
+                        await client.query('UPDATE lots SET qty = 0 WHERE id = $1', [lot.id]);
+                        diffToRemove -= lot.qty;
+                    } else {
+                        await client.query('UPDATE lots SET qty = qty - $1 WHERE id = $2', [diffToRemove, lot.id]);
+                        diffToRemove = 0;
+                    }
+                }
+            }
+            
+            await client.query('COMMIT');
+        } catch(e) {
+            await client.query('ROLLBACK');
+            throw e;
+        } finally {
+            client.release();
+        }
+        
+        res.redirect('/inventory');
+    } catch(e) {
+        console.error('Edit Inventory Error:', e);
+        res.redirect('/inventory?error=operation_invalid');
+    }
+});
+
+app.post('/inventory/import-csv', upload.single('csv_file'), async (req, res) => {
+    if (!req.file) return res.redirect('/inventory');
+    
+    const results = [];
+    fs.createReadStream(req.file.path)
+        .pipe(csv())
+        .on('data', (data) => results.push(data))
+        .on('end', async () => {
+            fs.unlinkSync(req.file.path); // clean up
+            
+            try {
+                const client = await db.connect();
+                try {
+                    await client.query('BEGIN');
+                    for (const row of results) {
+                        // find correct market price using dynamic key
+                        let marketPriceKey = Object.keys(row).find(k => k.toLowerCase().includes('market price'));
+                        let rawMarketPrice = marketPriceKey ? row[marketPriceKey] : null;
+                        if (row['Price Override'] && parseFloat(row['Price Override']) > 0) {
+                            rawMarketPrice = row['Price Override'];
+                        }
+                        const parsedMarketPrice = parseFloat(rawMarketPrice) || null;
+                        
+                        const name = row['Product Name'] || row['name'] || 'Unknown';
+                        const setName = row['Set'] || row['set_name'] || 'Custom';
+                        
+                        // Treat the product condition properly
+                        let condition = row['Card Condition'] || row['condition'] || 'Near Mint';
+                        if (!['Near Mint', 'Lightly Played', 'Sealed'].includes(condition)) {
+                            condition = 'Near Mint';
+                        }
+                        
+                        const category = row['Category'] || row['category'] || 'Singles';
+                        const qty = parseInt(row['Quantity'] || row['qty'] || 1);
+                        const cog = parseFloat(row['Average Cost Paid'] || row['cog'] || 0);
+                        
+                        // Check if exists
+                        const { rows } = await client.query('SELECT id, market_price FROM inventory WHERE lower(name) = $1 AND set_name = $2 FOR UPDATE', [name.toLowerCase(), setName]);
+                        let item_id;
+                        
+                        if (rows.length > 0) {
+                            item_id = rows[0].id;
+                            // Optionally update market price to CSV overrides if explicitly defined
+                            if (parsedMarketPrice !== null) {
+                                await client.query('UPDATE inventory SET market_price = $1 WHERE id = $2', [parsedMarketPrice, item_id]);
+                            }
+                        } else {
+                            const { rows: ir } = await client.query(
+                                `INSERT INTO inventory (name, set_name, condition, data_source, market_price, category) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+                                [name, setName, condition, 'manual', parsedMarketPrice, category]
+                            );
+                            item_id = ir[0].id;
+                        }
+                        
+                        if (qty > 0) {
+                            await client.query('INSERT INTO lots (inventory_id, qty, cog, date) VALUES ($1, $2, $3, $4)', [item_id, qty, cog, new Date().toISOString()]);
+                        }
+                    }
+                    await client.query('COMMIT');
+                } catch(e) {
+                    await client.query('ROLLBACK');
+                    console.error('CSV Import Error in DB:', e.message);
+                } finally {
+                    client.release();
+                }
+                
+                // Trigger background task to populate TCGPlayer links/images asynchronously
+                triggerBackgroundTcgplayerSync(results);
+                
+            } catch(e) {
+                console.error('CSV Import Overall Error:', e);
+            }
+            res.redirect('/inventory');
+        });
+});
+
+app.post('/sales/add', upload.single('sale_image'), async (req, res) => {
+    const { item_id, qty, price, shipping_cost, person, person_override } = req.body;
     if(!item_id || !qty) return res.redirect('/');
+    
+    let finalPerson = person === 'Other' ? (person_override || 'Unknown') : (person || 'Unknown');
+    let saleImage = req.file ? '/uploads/' + req.file.filename : null;
     
     try {
         const { rows: items } = await db.query('SELECT * FROM inventory WHERE id = $1', [item_id]);
@@ -340,8 +614,8 @@ app.post('/sales/add', async (req, res) => {
             
             if (parseInt(qty) - remainingToSell > 0) {
                 const netPrice = (parseFloat(price) || 0) - (parseFloat(shipping_cost) || 0);
-                await client.query('INSERT INTO sales (item_id, item_name, qty, total_price, type, date, person, cogs_sold) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [
-                    item.id, item.name, parseInt(qty) - remainingToSell, netPrice, 'Sale', new Date().toISOString(), person || 'Unknown', totalCogsDepleted
+                await client.query('INSERT INTO sales (item_id, item_name, qty, total_price, type, date, person, cogs_sold, image) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)', [
+                    item.id, item.name, parseInt(qty) - remainingToSell, netPrice, 'Sale', new Date().toISOString(), finalPerson, totalCogsDepleted, saleImage
                 ]);
             }
             await client.query('COMMIT');
@@ -389,63 +663,125 @@ app.post('/shipping/undo', async (req, res) => {
 });
 
 app.post('/trade/add', async (req, res) => {
-    const { 
-        giving_item_id, giving_qty, cash_given, 
-        receiving_name, receiving_qty, cash_received, 
-        receiving_price, receiving_set, receiving_image, receiving_tcgplayer,
-        person
+    let { 
+        giving_item_id, giving_qty, giving_price_override, 
+        receiving_name, receiving_qty, receiving_price, receiving_set, receiving_image, receiving_tcgplayer,
+        cash_given, cash_received, person
     } = req.body;
     
+    // Normalize arrays
+    const givenIds = [].concat(giving_item_id || []).filter(id => id);
+    const givenQtys = [].concat(giving_qty || []).map(q => parseInt(q) || 1);
+    const givenPrices = [].concat(giving_price_override || []).map(p => parseFloat(p) || 0);
+    
+    const recNames = [].concat(receiving_name || []).filter(n => n.trim().length > 0);
+    const recQtys = [].concat(receiving_qty || []).map(q => parseInt(q) || 1);
+    const recPrices = [].concat(receiving_price || []).map(p => parseFloat(p) || 0);
+    const recSets = [].concat(receiving_set || []);
+    const recImages = [].concat(receiving_image || []);
+    const recTcgplayers = [].concat(receiving_tcgplayer || []);
+    
+    const cashGov = parseFloat(cash_given || 0);
+    const cashRec = parseFloat(cash_received || 0);
+    
     try {
-        const { rows: items } = await db.query('SELECT * FROM inventory WHERE id = $1', [giving_item_id]);
-        const item = items[0];
-        if (item) {
-            let remainingToSell = parseInt(giving_qty || 1);
-            let totalCogsDepleted = 0;
-            const { rows: lots } = await db.query('SELECT * FROM lots WHERE inventory_id = $1 AND qty > 0 ORDER BY id ASC', [item.id]);
+        const client = await db.connect();
+        try {
+            await client.query('BEGIN');
             
-            const client = await db.connect();
-            try {
-                await client.query('BEGIN');
+            let totalCogsDepleted = 0;
+            let givenLogNames = [];
+            
+            // 1. Deduct all given items
+            for(let i = 0; i < givenIds.length; i++) {
+                const id = givenIds[i];
+                let remainingToSell = givenQtys[i];
+                
+                const { rows: items } = await client.query('SELECT name FROM inventory WHERE id = $1', [id]);
+                if(items.length > 0) givenLogNames.push(items[0].name);
+                
+                const { rows: lots } = await client.query('SELECT * FROM lots WHERE inventory_id = $1 AND qty > 0 ORDER BY id ASC', [id]);
+                
                 for (let lot of lots) {
+                    if (remainingToSell <= 0) break;
                     if (lot.qty >= remainingToSell) {
                         totalCogsDepleted += remainingToSell * parseFloat(lot.cog || 0);
                         await client.query('UPDATE lots SET qty = $1 WHERE id = $2', [lot.qty - remainingToSell, lot.id]);
-                        remainingToSell = 0; break;
+                        remainingToSell = 0; 
                     } else {
                         totalCogsDepleted += lot.qty * parseFloat(lot.cog || 0);
                         remainingToSell -= lot.qty;
-                        await client.query('UPDATE lots SET qty = $1 WHERE id = $2', [0, lot.id]);
+                        await client.query('UPDATE lots SET qty = 0 WHERE id = $1', [lot.id]);
                     }
                 }
+            }
+            
+            // 2. Math & Distributions
+            const totalCogsGiven = totalCogsDepleted + cashGov;
+            const costBasisForNewCards = totalCogsGiven - cashRec;
+            let totalRecMarketVal = 0;
+            
+            for(let i = 0; i < recNames.length; i++) {
+                totalRecMarketVal += recPrices[i] * recQtys[i];
+            }
+            
+            // Zero profit math:
+            let tradeCogsSold = totalCogsGiven;
+            let tradeTotalPrice = 0;
+            
+            if (recNames.length > 0) {
+                if (costBasisForNewCards >= 0) {
+                    tradeTotalPrice = totalCogsGiven; // Profit = 0
+                } else {
+                    tradeTotalPrice = cashRec; // pure cash profit
+                }
                 
-                if (receiving_name) {
-                    const { rows: exs } = await client.query('SELECT id FROM inventory WHERE lower(name) = $1 AND set_name = $2', [receiving_name.toLowerCase(), receiving_set || 'Custom']);
-                    const existingItem = exs[0];
-                    const costBasis = parseFloat(item.market_price || 0) * parseInt(giving_qty || 1) + parseFloat(cash_given || 0) - parseFloat(cash_received || 0);
-                    const unitCog = costBasis / parseInt(receiving_qty || 1);
+                let recLogNames = [];
+                for(let i = 0; i < recNames.length; i++) {
+                    const rName = recNames[i];
+                    const rQty = recQtys[i];
+                    const rPrice = recPrices[i];
+                    recLogNames.push(rName);
                     
-                    let recId = existingItem ? existingItem.id : null;
-                    if (!existingItem) {
+                    let unitCog = 0;
+                    if (costBasisForNewCards > 0) {
+                        const ratio = totalRecMarketVal > 0 ? ((rPrice * rQty) / totalRecMarketVal) : (1 / recNames.length);
+                        unitCog = (costBasisForNewCards * ratio) / rQty;
+                    }
+                    
+                    const rSet = recSets[i] || 'Custom';
+                    const { rows: exs } = await client.query('SELECT id FROM inventory WHERE lower(name) = $1 AND set_name = $2', [rName.toLowerCase(), rSet]);
+                    let recId = exs[0] ? exs[0].id : null;
+                    
+                    if (!recId) {
                         const { rows: newI } = await client.query(`INSERT INTO inventory (name, set_name, condition, data_source, image, tcgplayer_url, market_price, category) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`, [
-                            receiving_name, receiving_set || 'Custom', 'Near Mint', 'tcgplayer', receiving_image || '', receiving_tcgplayer || '', parseFloat(receiving_price || 0), 'Singles'
+                            rName, rSet, 'Near Mint', 'tcgplayer', recImages[i] || '', recTcgplayers[i] || '', rPrice, 'Singles'
                         ]);
                         recId = newI[0].id;
                     }
-                    await client.query('INSERT INTO lots (inventory_id, qty, cog, date) VALUES ($1, $2, $3, $4)', [recId, parseInt(receiving_qty || 1), Math.max(0, unitCog), new Date().toISOString()]);
                     
-                    const totalVal = parseFloat(receiving_price || 0) * parseInt(receiving_qty || 1) + parseFloat(cash_received || 0);
-                    await client.query('INSERT INTO sales (item_id, item_name, qty, total_price, type, date, person, cogs_sold) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [
-                        item.id, item.name + ` ➔ ${receiving_name}`, parseInt(giving_qty || 1), totalVal, 'Trade', new Date().toISOString(), person || 'Unknown', totalCogsDepleted
-                    ]);
+                    await client.query('INSERT INTO lots (inventory_id, qty, cog, date) VALUES ($1, $2, $3, $4)', [recId, rQty, Math.max(0, unitCog), new Date().toISOString()]);
                 }
-                await client.query('COMMIT');
-            } catch(e) {
-                await client.query('ROLLBACK');
-                throw e;
-            } finally {
-                client.release();
+                
+                const saleDesc = (givenLogNames.length > 1 ? `Multi (${givenLogNames.length})` : (givenLogNames[0] || 'Cash')) + ` ➔ ` + (recLogNames.length > 1 ? `Multi (${recLogNames.length})` : (recLogNames[0] || 'Unknown'));
+                
+                await client.query('INSERT INTO sales (item_id, item_name, qty, total_price, type, date, person, cogs_sold) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [
+                    givenIds[0] || null, saleDesc, givenQtys.reduce((a,b)=>a+b, 0) || 1, tradeTotalPrice, 'Trade', new Date().toISOString(), person || 'Unknown', tradeCogsSold
+                ]);
+            } else {
+                tradeTotalPrice = cashRec;
+                const saleDesc = (givenLogNames.length > 1 ? `Multi (${givenLogNames.length})` : (givenLogNames[0] || 'Unknown')) + ` ➔ Cash`;
+                await client.query('INSERT INTO sales (item_id, item_name, qty, total_price, type, date, person, cogs_sold) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [
+                    givenIds[0] || null, saleDesc, givenQtys.reduce((a,b)=>a+b, 0) || 1, tradeTotalPrice, 'Trade', new Date().toISOString(), person || 'Unknown', tradeCogsSold
+                ]);
             }
+
+            await client.query('COMMIT');
+        } catch(e) {
+            await client.query('ROLLBACK');
+            throw e;
+        } finally {
+            client.release();
         }
     } catch(e) { console.error('Trade Add Error:', e); }
     res.redirect('/');
@@ -483,11 +819,12 @@ app.post('/api/sync-prices', async (req, res) => {
         for (let item of items) {
             try {
                 if (item.data_source === 'pricecharting') {
-                    const response = await axios.get(`https://www.pricecharting.com/search-products?q=${encodeURIComponent(item.name)}&type=prices`, {
-                        headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 8000
+                    const response = await fetchWithTimeout(`https://www.pricecharting.com/search-products?q=${encodeURIComponent(item.name)}&type=prices`, {
+                        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
                     });
-                    if (response.data && response.data.products && response.data.products.length > 0) {
-                        const match = response.data.products.find(p => p.productName.toLowerCase() === item.name.toLowerCase()) || response.data.products[0];
+                    const data = await response.json();
+                    if (data && data.products && data.products.length > 0) {
+                        const match = data.products.find(p => p.productName.toLowerCase() === item.name.toLowerCase()) || data.products[0];
                         const num = parseFloat((match.price1 || '').replace(/[^0-9.]/g, ''));
                         if (!isNaN(num) && num > 0) {
                             await db.query('UPDATE inventory SET market_price = $1 WHERE id = $2', [parseFloat((num * rate).toFixed(1)), item.id]);
@@ -495,9 +832,15 @@ app.post('/api/sync-prices', async (req, res) => {
                     }
                 } else if (item.data_source === 'tcgplayer') {
                     const qStr = `name:"${item.name}"${item.set_name && item.set_name !== 'Custom' && item.set_name !== 'Unknown' ? ` set.name:"${item.set_name}"` : ''}`;
-                    const response = await axios.get(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(qStr)}&pageSize=1`, { timeout: 8000 });
-                    if (response.data && response.data.data && response.data.data.length > 0) {
-                        const card = response.data.data[0];
+                    const urlObj = new URL('https://api.pokemontcg.io/v2/cards');
+                    urlObj.searchParams.append('q', qStr);
+                    urlObj.searchParams.append('pageSize', '1');
+                    const response = await fetchWithTimeout(urlObj.toString(), {
+                        headers: { 'User-Agent': 'Mozilla/5.0' }
+                    });
+                    const data = await response.json();
+                    if (data && data.data && data.data.length > 0) {
+                        const card = data.data[0];
                         if (card.tcgplayer && card.tcgplayer.prices) {
                             const p = card.tcgplayer.prices.normal?.market || card.tcgplayer.prices.holofoil?.market || card.tcgplayer.prices.reverseHolofoil?.market;
                             if (p) {
@@ -514,6 +857,11 @@ app.post('/api/sync-prices', async (req, res) => {
     } catch(e) { console.error('Overall Sync Error:', e); }
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
+initDB().then(() => {
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`Server running on http://0.0.0.0:${PORT}`);
+    });
+}).catch(err => {
+    console.error('Failed to initialize database:', err);
+    process.exit(1);
 });

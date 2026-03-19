@@ -19,6 +19,7 @@
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
           </a>
         </div>
+        <button class="btn btn-secondary btn-sm rounded-full hidden md:flex font-bold px-4 shadow-secondary/30 shadow-md" onclick="document.getElementById('import_csv_modal').showModal()">Import CSV</button>
         <button class="btn btn-primary btn-sm rounded-full hidden md:flex font-bold px-4 shadow-primary/30 shadow-md" onclick="document.getElementById('add_item_modal').showModal()">+ Add Item</button>
       </div>
     </div>
@@ -71,6 +72,7 @@
                <% if(item.tcgplayer_url) { %>
                  <a href="<%= item.tcgplayer_url %>" target="_blank" class="btn btn-xs btn-ghost text-info hover:bg-info/10 tooltip tooltip-left" data-tip="View on TCGPlayer"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg></a>
                <% } %>
+               <button class="btn btn-sm btn-ghost text-secondary hover:bg-secondary/10 rounded-lg font-medium" onclick="openEditModal(this)" data-item="<%= Buffer.from(JSON.stringify({ ...item, lots: undefined, totalQty, avgCog: Number(avgCog.toFixed(2)) })).toString('base64') %>">Edit</button>
                <button class="btn btn-sm btn-ghost text-primary hover:bg-primary/10 rounded-lg font-medium" onclick="document.getElementById('record_sale_modal').showModal(); document.querySelector('#record_sale_modal select[name=\'item_id\']').value='<%= item.id %>'">Quick Sell</button>
             </td>
           </tr>
@@ -111,6 +113,7 @@
              <% if(item.tcgplayer_url) { %>
                 <a href="<%= item.tcgplayer_url %>" target="_blank" class="btn btn-sm btn-outline btn-info flex-1 tooltip" data-tip="Open TCGPlayer"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg></a>
              <% } %>
+             <button class="btn btn-secondary btn-outline btn-sm shadow-sm rounded-lg" onclick="openEditModal(this)" data-item="<%= Buffer.from(JSON.stringify({ ...item, lots: undefined, totalQty, avgCog: Number(avgCog.toFixed(2)) })).toString('base64') %>">Edit</button>
              <button class="btn btn-primary btn-sm flex-[3] rounded-lg shadow-primary/20 shadow-lg" onclick="document.getElementById('record_sale_modal').showModal(); document.querySelector('#record_sale_modal select[name=\'item_id\']').value='<%= item.id %>'">Quick Sell</button>
           </div>
         </div>
@@ -120,5 +123,30 @@
     <% } %>
   </div>
 </main>
+
+<!-- Error Modal -->
+<dialog id="error_modal" class="modal">
+  <div class="modal-box w-11/12 max-w-sm border border-error/20">
+    <h3 class="font-bold text-lg text-error flex items-center gap-2">
+      <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+      Operation Invalid
+    </h3>
+    <p class="py-4 text-sm opacity-80" id="error_modal_message">An error occurred while trying to process your request. Please check the values or try again later.</p>
+    <div class="modal-action">
+      <form method="dialog">
+        <button class="btn btn-error">Close</button>
+      </form>
+    </div>
+  </div>
+</dialog>
+<script>
+  window.addEventListener('DOMContentLoaded', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if(urlParams.get('error') === 'operation_invalid') {
+      document.getElementById('error_modal').showModal();
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  });
+</script>
 
 <%- include('partials/footer') %>

@@ -38,14 +38,8 @@ const { initDB, db, readHydratedInventory } = require('./db');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const uploadsDir = path.join(__dirname, 'public', 'uploads');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, uploadsDir),
-    filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname.replace(/[^a-zA-Z0-9.]/g, ''))
-});
-const upload = multer({ storage });
+const storage = multer.memoryStorage();
+const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
 
 app.set('view engine', 'ejs');
 app.use(express.static('public'));
@@ -320,7 +314,7 @@ app.post('/inventory/add', upload.single('image_upload'), async (req, res) => {
     if(!name || !qty) return res.redirect('/inventory');
     
     let finalImageUrl = image_url;
-    if (req.file) finalImageUrl = '/uploads/' + req.file.filename;
+    if (req.file) finalImageUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
     
     let parsedMarketPrice = parseFloat(market_price);
     if(isNaN(parsedMarketPrice)) parsedMarketPrice = null;
@@ -465,7 +459,7 @@ app.post('/inventory/edit', upload.single('edit_image_upload'), async (req, res)
         let parsedCog = parseFloat(avg_cog);
         
         let finalImageUrl = image_url;
-        if (req.file) finalImageUrl = '/uploads/' + req.file.filename;
+        if (req.file) finalImageUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
 
         const client = await db.connect();
         try {
@@ -532,12 +526,12 @@ app.post('/inventory/edit', upload.single('edit_image_upload'), async (req, res)
 app.post('/inventory/import-csv', upload.single('csv_file'), async (req, res) => {
     if (!req.file) return res.redirect('/inventory');
     
+    const { Readable } = require('stream');
     const results = [];
-    fs.createReadStream(req.file.path)
+    Readable.from(req.file.buffer)
         .pipe(csv())
         .on('data', (data) => results.push(data))
         .on('end', async () => {
-            fs.unlinkSync(req.file.path); // clean up
             
             try {
                 const client = await db.connect();
@@ -610,7 +604,7 @@ app.post('/sales/add', upload.single('sale_image'), async (req, res) => {
     if(!item_id || !qty) return res.redirect('/');
     
     let finalPerson = person === 'Other' ? (person_override || 'Unknown') : (person || 'Unknown');
-    let saleImage = req.file ? '/uploads/' + req.file.filename : null;
+    let saleImage = req.file ? `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}` : null;
     
     try {
         const { rows: items } = await db.query('SELECT * FROM inventory WHERE id = $1', [item_id]);
@@ -664,7 +658,7 @@ app.post('/sales/bulk-add', upload.single('sale_image'), async (req, res) => {
     if (givenIds.length === 0) return res.redirect('/');
     
     let finalPerson = person === 'Other' ? (person_override || 'Unknown') : (person || 'Unknown');
-    let saleImage = req.file ? '/uploads/' + req.file.filename : null;
+    let saleImage = req.file ? `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}` : null;
     let netPrice = (parseFloat(price) || 0) - (parseFloat(shipping_cost) || 0);
     
     try {

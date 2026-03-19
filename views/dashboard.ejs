@@ -221,10 +221,13 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script id="inventory-data" type="application/json"><%- JSON.stringify(inventory || []) %></script>
+<script id="sales-data" type="application/json"><%- JSON.stringify(sales || []) %></script>
+<script id="activity-data" type="application/json"><%- JSON.stringify(activity || []) %></script>
 <script>
-  const inventoryData = <%- JSON.stringify(inventory || []) %>;
-  const salesData = <%- JSON.stringify(sales || []) %>;
-  const activityData = <%- JSON.stringify(activity || []) %>;
+  const inventoryData = JSON.parse(document.getElementById('inventory-data').textContent);
+  const salesData = JSON.parse(document.getElementById('sales-data').textContent);
+  const activityData = JSON.parse(document.getElementById('activity-data').textContent);
   
   // 1. Sales Trend
   const salesByDate = {};

@@ -69,21 +69,56 @@ const initDB = async () => {
     }
 };
 
+let _inventoryCache = null;
+let _inventoryCacheTime = 0;
+let _salesCache = null;
+let _salesCacheTime = 0;
+let _shippingCache = null;
+let _shippingCacheTime = 0;
+const CACHE_TTL = 30 * 1000; // 30 seconds
+
+const invalidateInventoryCache = () => {
+    _inventoryCache = null;
+    _salesCache = null;
+    _shippingCache = null;
+};
+
+const readSales = async () => {
+    if (_salesCache && (Date.now() - _salesCacheTime < CACHE_TTL)) return _salesCache;
+    const { rows } = await pool.query('SELECT id, item_id, item_name, qty, total_price, type, date, person, cogs_sold, (image IS NOT NULL) AS has_image, trade_received_data FROM sales ORDER BY id DESC');
+    // Keep image presence flag but not the data itself
+    _salesCache = rows;
+    _salesCacheTime = Date.now();
+    return rows;
+};
+
+const readShipping = async () => {
+    if (_shippingCache && (Date.now() - _shippingCacheTime < CACHE_TTL)) return _shippingCache;
+    const { rows } = await pool.query('SELECT * FROM shipping_logs ORDER BY id DESC');
+    _shippingCache = rows;
+    _shippingCacheTime = Date.now();
+    return rows;
+};
+
 const readHydratedInventory = async () => {
+    if (_inventoryCache && (Date.now() - _inventoryCacheTime < CACHE_TTL)) {
+        return _inventoryCache;
+    }
     const client = await pool.connect();
     try {
         await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
         const { rows: items } = await client.query('SELECT * FROM inventory ORDER BY name ASC');
         const { rows: lots } = await client.query('SELECT * FROM lots WHERE qty > 0');
         await client.query('COMMIT');
-        
-        return items.map(item => {
-            return {
-                ...item,
-                set: item.set_name,
-                lots: lots.filter(l => l.inventory_id === item.id)
-            };
-        });
+
+        const result = items.map(item => ({
+            ...item,
+            set: item.set_name,
+            lots: lots.filter(l => l.inventory_id === item.id)
+        }));
+        _inventoryCache = result;
+        _inventoryCacheTime = Date.now();
+        return result;
     } catch(err) {
         await client.query('ROLLBACK');
         throw err;
@@ -92,4 +127,4 @@ const readHydratedInventory = async () => {
     }
 };
 
-module.exports = { db: pool, initDB, readHydratedInventory };
+module.exports = { db: pool, initDB, readHydratedInventory, readSales, readShipping, invalidateInventoryCache };

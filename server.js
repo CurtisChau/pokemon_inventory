@@ -34,7 +34,7 @@ const csv = require('csv-parser');
 const fs = require('fs');
 const path = require('path');
 const basicAuth = require('express-basic-auth');
-const { initDB, db, readHydratedInventory } = require('./db');
+const { initDB, db, readHydratedInventory, readSales, readShipping, invalidateInventoryCache } = require('./db');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -51,11 +51,19 @@ app.use(basicAuth({
     realm: 'Pokemon Inventory'
 }));
 
+// Invalidate inventory cache on any write request
+app.use((req, res, next) => {
+    if (req.method === 'POST') invalidateInventoryCache();
+    next();
+});
+
 app.get('/', async (req, res) => {
     try {
-        const inventory = await readHydratedInventory();
-        const { rows: sales } = await db.query('SELECT * FROM sales ORDER BY id DESC');
-        const { rows: shipping } = await db.query('SELECT * FROM shipping_logs ORDER BY id DESC');
+        const [inventory, sales, shipping] = await Promise.all([
+            readHydratedInventory(),
+            readSales(),
+            readShipping()
+        ]);
         
         // Extract unique persons for filter dropdown
         const persons = [...new Set(sales.map(s => s.person).filter(p => p && p.trim() !== 'Unknown' && p.trim() !== ''))];
@@ -172,6 +180,34 @@ getExchangeRates();
 app.get('/api/exchange-rate', async (req, res) => {
     const rates = await getExchangeRates();
     res.json(rates);
+});
+
+// Helper to serve an image stored as data URI or HTTP URL
+function serveImage(imageStr, res) {
+    if (!imageStr) return res.status(404).send('No image');
+    if (imageStr.startsWith('http')) return res.redirect(imageStr);
+    const match = imageStr.match(/^data:([^;]+);base64,(.+)$/s);
+    if (!match) return res.status(400).send('Invalid image');
+    const [, mime, b64] = match;
+    res.set('Content-Type', mime);
+    res.set('Cache-Control', 'private, max-age=86400');
+    res.send(Buffer.from(b64, 'base64'));
+}
+
+// Serve sale receipt image on-demand
+app.get('/api/sale-image/:id', async (req, res) => {
+    try {
+        const { rows } = await db.query('SELECT image FROM sales WHERE id = $1', [req.params.id]);
+        serveImage(rows[0]?.image, res);
+    } catch (e) { res.status(500).send('Error'); }
+});
+
+// Serve inventory item image on-demand
+app.get('/api/item-image/:id', async (req, res) => {
+    try {
+        const { rows } = await db.query('SELECT image FROM inventory WHERE id = $1', [req.params.id]);
+        serveImage(rows[0]?.image, res);
+    } catch (e) { res.status(500).send('Error'); }
 });
 
 app.get('/api/search', async (req, res) => {
@@ -894,10 +930,17 @@ app.post('/sales/refund', async (req, res) => {
                 ]);
             }
             // For trades: zero out the lots that were created for received items
-            if (sale.type === 'Trade' && sale.trade_received_data) {
-                const receivedLotIds = JSON.parse(sale.trade_received_data);
-                for (const lotId of receivedLotIds) {
-                    await db.query('UPDATE lots SET qty = 0 WHERE id = $1', [lotId]);
+            if (sale.type === 'Trade') {
+                console.log('Trade undo - trade_received_data:', sale.trade_received_data);
+                if (sale.trade_received_data) {
+                    const receivedLotIds = JSON.parse(sale.trade_received_data);
+                    console.log('Zeroing received lot IDs:', receivedLotIds);
+                    for (const lotId of receivedLotIds) {
+                        const result = await db.query('UPDATE lots SET qty = 0 WHERE id = $1', [lotId]);
+                        console.log('Zeroed lot', lotId, '- rows affected:', result.rowCount);
+                    }
+                } else {
+                    console.log('WARNING: No trade_received_data found - trade was recorded before fix');
                 }
             }
         }
@@ -952,6 +995,15 @@ app.post('/api/sync-prices', async (req, res) => {
             await new Promise(r => setTimeout(r, 1000)); // Respect limits (1 req/sec)
         }
     } catch(e) { console.error('Overall Sync Error:', e); }
+});
+
+// Multer file-size error handler
+app.use((err, req, res, next) => {
+    if (err && err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).send('<script>alert("Receipt image is too large (max 10MB). Please compress or resize it."); history.back();</script>');
+    }
+    console.error(err);
+    res.status(500).send('Server error: ' + err.message);
 });
 
 initDB().then(() => {

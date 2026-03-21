@@ -184,8 +184,8 @@
                 <% if(act.log_type === 'sale') { %>
                     <div class="flex items-center gap-2">
                         <span class="text-[10px] bg-secondary/10 text-secondary border border-secondary/20 px-2 py-0.5 rounded flex items-center gap-1 font-semibold max-w-[100px] truncate"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg> <%= act.person || 'Unknown' %></span>
-                        <% if(act.image && act.image.length > 5) { %>
-                           <button onclick="openReceiptModal('<%= act.image.replace(/'/g, '\\\'') %>')" class="text-[10px] bg-info/10 text-info border border-info/20 px-2 py-0.5 rounded flex items-center gap-1 font-semibold hover:bg-info hover:text-info-content transition-colors" title="View Proof">🖼️ Image</button>
+                        <% if(act.has_image) { %>
+                           <button onclick="openReceiptModal(<%= act.id %>)" class="text-[10px] bg-info/10 text-info border border-info/20 px-2 py-0.5 rounded flex items-center gap-1 font-semibold hover:bg-info hover:text-info-content transition-colors" title="View Proof">🖼️ Image</button>
                         <% } %>
                     </div>
                     <div class="text-right">
@@ -221,9 +221,9 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script id="inventory-data" type="application/json"><%- JSON.stringify(inventory || []) %></script>
-<script id="sales-data" type="application/json"><%- JSON.stringify(sales || []) %></script>
-<script id="activity-data" type="application/json"><%- JSON.stringify(activity || []) %></script>
+<script id="inventory-data" type="application/json"><%- JSON.stringify((inventory || []).map(i => ({ id: i.id, name: i.name, set_name: i.set_name, category: i.category, market_price: i.market_price, lots: i.lots }))) %></script>
+<script id="sales-data" type="application/json"><%- JSON.stringify((sales || []).map(s => ({ id: s.id, item_name: s.item_name, qty: s.qty, total_price: s.total_price, type: s.type, date: s.date, person: s.person, cogs_sold: s.cogs_sold }))) %></script>
+<script id="activity-data" type="application/json"><%- JSON.stringify((activity || []).map(a => ({ id: a.id, item_name: a.item_name, qty: a.qty, total_price: a.total_price, type: a.type, date: a.date, person: a.person, cogs_sold: a.cogs_sold, cost: a.cost, impacts: a.impacts, log_type: a.log_type, has_image: !!(a.image && a.image.length > 5) }))) %></script>
 <script>
   const inventoryData = JSON.parse(document.getElementById('inventory-data').textContent);
   const salesData = JSON.parse(document.getElementById('sales-data').textContent);
@@ -353,15 +353,23 @@
       <h3 class="font-bold text-lg">Sale Receipt</h3>
       <button onclick="document.getElementById('receipt_image_modal').close()" class="btn btn-sm btn-circle btn-ghost">✕</button>
     </div>
+    <div id="receipt_modal_loading" class="flex justify-center py-8 hidden"><span class="loading loading-spinner loading-lg"></span></div>
     <img id="receipt_modal_img" src="" alt="Sale Receipt" class="w-full rounded-xl object-contain max-h-[70vh]" />
   </div>
   <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
 <script>
-  function openReceiptModal(src) {
-    document.getElementById('receipt_modal_img').src = src;
+  function openReceiptModal(saleId) {
+    const img = document.getElementById('receipt_modal_img');
+    const loader = document.getElementById('receipt_modal_loading');
+    img.src = '';
+    img.classList.add('hidden');
+    loader.classList.remove('hidden');
     document.getElementById('receipt_image_modal').showModal();
+    img.onload = () => { loader.classList.add('hidden'); img.classList.remove('hidden'); };
+    img.onerror = () => { loader.classList.add('hidden'); img.alt = 'Image failed to load'; img.classList.remove('hidden'); };
+    img.src = '/api/sale-image/' + saleId;
   }
 </script>
 

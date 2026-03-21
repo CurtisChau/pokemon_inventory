@@ -63,7 +63,7 @@
               <div class="flex items-center gap-4">
                 <div class="avatar shadow-sm border border-base-300 rounded-lg overflow-hidden bg-base-200 flex items-center justify-center font-bold text-primary">
                   <div class="w-12 h-12 p-1 flex items-center justify-center">
-                    <% if(item.image) { %><img src="<%= item.image %>" alt="<%= item.name %>" class="object-contain" /><% } else { %><%= item.name.charAt(0) %><% } %>
+                    <% if(item.image) { %><img src="/api/item-image/<%= item.id %>" alt="<%= item.name %>" class="object-contain" loading="lazy" decoding="async" /><% } else { %><%= item.name.charAt(0) %><% } %>
                   </div>
                 </div>
                 <div>
@@ -86,8 +86,8 @@
                <% if(item.tcgplayer_url) { %>
                  <a href="<%= item.tcgplayer_url %>" target="_blank" class="btn btn-xs btn-ghost text-info hover:bg-info/10 tooltip tooltip-left" data-tip="View on TCGPlayer"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg></a>
                <% } %>
-               <button class="btn btn-sm btn-ghost text-secondary hover:bg-secondary/10 rounded-lg font-medium" onclick="openEditModal(this)" data-item="<%= Buffer.from(JSON.stringify({ ...item, lots: undefined, totalQty: item.totalQty, avgCog: Number(item.avgCog.toFixed(2)) })).toString('base64') %>">Edit</button>
-               <button class="btn btn-sm btn-ghost text-primary hover:bg-primary/10 rounded-lg font-medium" onclick="document.getElementById('record_sale_modal').showModal(); document.querySelector('#record_sale_modal select[name=\'item_id\']').value='<%= item.id %>'">Quick Sell</button>
+               <button class="btn btn-sm btn-ghost text-secondary hover:bg-secondary/10 rounded-lg font-medium" onclick="openEditModal(this)" data-item="<%= Buffer.from(JSON.stringify({ id: item.id, name: item.name, set: item.set, set_name: item.set_name, condition: item.condition, category: item.category, market_price: item.market_price, tcgplayer_url: item.tcgplayer_url, totalQty: item.totalQty, avgCog: Number(item.avgCog.toFixed(2)) })).toString('base64') %>">Edit</button>
+               <button class="btn btn-sm btn-ghost text-primary hover:bg-primary/10 rounded-lg font-medium" onclick="quickSell(this)" data-id="<%= item.id %>" data-name="<%= item.name %>" data-set="<%= item.set || item.set_name || '' %>" data-price="<%= item.market_price || 0 %>" data-stock="<%= item.lots.reduce((a,b)=>a+b.qty,0) %>">Quick Sell</button>
             </td>
           </tr>
           <% }) }) %>
@@ -122,7 +122,7 @@
           <% groupedCard[category].forEach(item => { %>
           <div class="card bg-base-100 shadow-sm border border-base-200/60 overflow-hidden group hover:shadow-md hover:border-primary/30 transition-all duration-300" data-card-item="<%= item.name %> <%= item.set %> <%= item.condition %>">
             <figure class="px-4 pt-5 pb-2 relative flex items-center justify-center h-52 bg-gradient-to-b from-base-200/50 to-transparent">
-              <% if(item.image) { %><img src="<%= item.image %>" alt="<%= item.name %>" class="rounded-xl drop-shadow-lg h-full object-contain group-hover:scale-105 transition-transform duration-500" /><% } else { %><div class="text-6xl font-black text-primary opacity-30"><%= item.name.charAt(0) %></div><% } %>
+              <% if(item.image) { %><img src="/api/item-image/<%= item.id %>" alt="<%= item.name %>" class="rounded-xl drop-shadow-lg h-full object-contain group-hover:scale-105 transition-transform duration-500" loading="lazy" decoding="async" /><% } else { %><div class="text-6xl font-black text-primary opacity-30"><%= item.name.charAt(0) %></div><% } %>
               <div class="absolute top-4 right-4 badge badge-primary font-bold shadow-md border-none">x<%= item.totalQty %></div>
             </figure>
             <div class="card-body p-4 pt-2 flex justify-end">
@@ -145,8 +145,8 @@
                  <% if(item.tcgplayer_url) { %>
                     <a href="<%= item.tcgplayer_url %>" target="_blank" class="btn btn-sm btn-outline btn-info flex-1 tooltip" data-tip="Open TCGPlayer"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg></a>
                  <% } %>
-                 <button class="btn btn-secondary btn-outline btn-sm shadow-sm rounded-lg" onclick="openEditModal(this)" data-item="<%= Buffer.from(JSON.stringify({ ...item, lots: undefined, totalQty: item.totalQty, avgCog: Number(item.avgCog.toFixed(2)) })).toString('base64') %>">Edit</button>
-                 <button class="btn btn-primary btn-sm flex-[3] rounded-lg shadow-primary/20 shadow-lg" onclick="document.getElementById('record_sale_modal').showModal(); document.querySelector('#record_sale_modal select[name=\'item_id\']').value='<%= item.id %>'">Quick Sell</button>
+                 <button class="btn btn-secondary btn-outline btn-sm shadow-sm rounded-lg" onclick="openEditModal(this)" data-item="<%= Buffer.from(JSON.stringify({ id: item.id, name: item.name, set: item.set, set_name: item.set_name, condition: item.condition, category: item.category, market_price: item.market_price, tcgplayer_url: item.tcgplayer_url, totalQty: item.totalQty, avgCog: Number(item.avgCog.toFixed(2)) })).toString('base64') %>">Edit</button>
+                 <button class="btn btn-primary btn-sm flex-[3] rounded-lg shadow-primary/20 shadow-lg" onclick="quickSell(this)" data-id="<%= item.id %>" data-name="<%= item.name %>" data-set="<%= item.set || item.set_name || '' %>" data-price="<%= item.market_price || 0 %>" data-stock="<%= item.lots.reduce((a,b)=>a+b.qty,0) %>">Quick Sell</button>
               </div>
             </div>
           </div>

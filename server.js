@@ -750,11 +750,12 @@ app.post('/shipping/undo', async (req, res) => {
 });
 
 app.post('/trade/add', async (req, res) => {
-    let { 
-        giving_item_id, giving_qty, giving_price_override, 
+    let {
+        giving_item_id, giving_qty, giving_price_override,
         receiving_name, receiving_qty, receiving_price, receiving_set, receiving_image, receiving_tcgplayer,
-        cash_given, cash_received, person
+        cash_given, cash_received, person, person_override
     } = req.body;
+    const finalTradePerson = person === 'Other' ? (person_override || 'Unknown') : (person || 'Curtis');
     
     // Normalize arrays
     const givenIds = [].concat(giving_item_id || []).filter(id => id);
@@ -824,42 +825,44 @@ app.post('/trade/add', async (req, res) => {
                 }
                 
                 let recLogNames = [];
+                const receivedLotIds = [];
                 for(let i = 0; i < recNames.length; i++) {
                     const rName = recNames[i];
                     const rQty = recQtys[i];
                     const rPrice = recPrices[i];
                     recLogNames.push(rName);
-                    
+
                     let unitCog = 0;
                     if (costBasisForNewCards > 0) {
                         const ratio = totalRecMarketVal > 0 ? ((rPrice * rQty) / totalRecMarketVal) : (1 / recNames.length);
                         unitCog = (costBasisForNewCards * ratio) / rQty;
                     }
-                    
+
                     const rSet = recSets[i] || 'Custom';
                     const { rows: exs } = await client.query('SELECT id FROM inventory WHERE lower(name) = $1 AND set_name = $2', [rName.toLowerCase(), rSet]);
                     let recId = exs[0] ? exs[0].id : null;
-                    
+
                     if (!recId) {
                         const { rows: newI } = await client.query(`INSERT INTO inventory (name, set_name, condition, data_source, image, tcgplayer_url, market_price, category) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`, [
                             rName, rSet, 'Near Mint', 'tcgplayer', recImages[i] || '', recTcgplayers[i] || '', rPrice, 'Singles'
                         ]);
                         recId = newI[0].id;
                     }
-                    
-                    await client.query('INSERT INTO lots (inventory_id, qty, cog, date) VALUES ($1, $2, $3, $4)', [recId, rQty, Math.max(0, unitCog), new Date().toISOString()]);
+
+                    const { rows: lr } = await client.query('INSERT INTO lots (inventory_id, qty, cog, date) VALUES ($1, $2, $3, $4) RETURNING id', [recId, rQty, Math.max(0, unitCog), new Date().toISOString()]);
+                    receivedLotIds.push(lr[0].id);
                 }
-                
+
                 const saleDesc = (givenLogNames.length > 1 ? `Multi (${givenLogNames.length})` : (givenLogNames[0] || 'Cash')) + ` ➔ ` + (recLogNames.length > 1 ? `Multi (${recLogNames.length})` : (recLogNames[0] || 'Unknown'));
-                
-                await client.query('INSERT INTO sales (item_id, item_name, qty, total_price, type, date, person, cogs_sold) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [
-                    givenIds[0] || null, saleDesc, givenQtys.reduce((a,b)=>a+b, 0) || 1, tradeTotalPrice, 'Trade', new Date().toISOString(), person || 'Unknown', tradeCogsSold
+
+                await client.query('INSERT INTO sales (item_id, item_name, qty, total_price, type, date, person, cogs_sold, trade_received_data) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)', [
+                    givenIds[0] || null, saleDesc, givenQtys.reduce((a,b)=>a+b, 0) || 1, tradeTotalPrice, 'Trade', new Date().toISOString(), finalTradePerson, tradeCogsSold, JSON.stringify(receivedLotIds)
                 ]);
             } else {
                 tradeTotalPrice = cashRec;
                 const saleDesc = (givenLogNames.length > 1 ? `Multi (${givenLogNames.length})` : (givenLogNames[0] || 'Unknown')) + ` ➔ Cash`;
                 await client.query('INSERT INTO sales (item_id, item_name, qty, total_price, type, date, person, cogs_sold) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [
-                    givenIds[0] || null, saleDesc, givenQtys.reduce((a,b)=>a+b, 0) || 1, tradeTotalPrice, 'Trade', new Date().toISOString(), person || 'Unknown', tradeCogsSold
+                    givenIds[0] || null, saleDesc, givenQtys.reduce((a,b)=>a+b, 0) || 1, tradeTotalPrice, 'Trade', new Date().toISOString(), finalTradePerson, tradeCogsSold
                 ]);
             }
 
@@ -889,6 +892,13 @@ app.post('/sales/refund', async (req, res) => {
                 await db.query('INSERT INTO lots (inventory_id, qty, cog, date) VALUES ($1, $2, $3, $4)', [
                     item.id, sale.qty, cogToRestore, new Date().toISOString()
                 ]);
+            }
+            // For trades: zero out the lots that were created for received items
+            if (sale.type === 'Trade' && sale.trade_received_data) {
+                const receivedLotIds = JSON.parse(sale.trade_received_data);
+                for (const lotId of receivedLotIds) {
+                    await db.query('UPDATE lots SET qty = 0 WHERE id = $1', [lotId]);
+                }
             }
         }
         await db.query('DELETE FROM sales WHERE id = $1', [sale_id]);

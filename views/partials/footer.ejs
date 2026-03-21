@@ -539,10 +539,20 @@
     </div>
     
     <div class="modal-action bg-base-200 p-4 m-0 rounded-b-2xl flex flex-col sm:flex-row gap-4 justify-between items-center w-full flex-shrink-0">
-      <label class="form-control w-full sm:w-1/3">
-        <div class="label py-0 pb-1"><span class="label-text text-[10px] uppercase font-bold text-base-content/60">Conducted By</span></div>
-        <input type="text" name="person" placeholder="e.g. John" class="input input-bordered input-sm w-full" />
-      </label>
+      <div class="flex gap-2 w-full sm:w-1/2">
+        <label class="form-control flex-1">
+          <div class="label py-0 pb-1"><span class="label-text text-[10px] uppercase font-bold text-base-content/60">Conducted By</span></div>
+          <select name="person" id="trade_person_select" class="select select-bordered select-sm w-full" onchange="document.getElementById('trade_person_override').classList.toggle('hidden', this.value !== 'Other')" required>
+            <option value="Curtis" selected>Curtis</option>
+            <option value="Michael">Michael</option>
+            <option value="Other">Other (Manual)</option>
+          </select>
+        </label>
+        <label class="form-control flex-1 hidden" id="trade_person_override">
+          <div class="label py-0 pb-1"><span class="label-text text-[10px] text-base-content/70">Custom Name</span></div>
+          <input type="text" name="person_override" placeholder="Typing name..." class="input input-bordered input-sm w-full" />
+        </label>
+      </div>
       <div class="flex justify-end mt-4 sm:mt-0">
         <button type="button" class="btn mr-2" onclick="window.record_trade_modal.close()">Cancel</button>
         <button type="submit" class="btn btn-warning">Finalize Trade</button>

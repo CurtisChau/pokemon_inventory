@@ -61,6 +61,7 @@ const initDB = async () => {
         await pool.query(`ALTER TABLE sales ADD COLUMN IF NOT EXISTS person text DEFAULT 'Unknown';`).catch(() => {});
         await pool.query(`ALTER TABLE sales ADD COLUMN IF NOT EXISTS cogs_sold real DEFAULT 0.0;`).catch(() => {});
         await pool.query(`ALTER TABLE sales ADD COLUMN IF NOT EXISTS image text;`).catch(() => {});
+        await pool.query(`ALTER TABLE sales ADD COLUMN IF NOT EXISTS trade_received_data text;`).catch(() => {});
         
         console.log("PostgreSQL Database Initialized!");
     } catch(err) {

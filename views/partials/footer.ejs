@@ -766,6 +766,8 @@
   </div>
 </dialog>
 
+<script id="trade-inventory-data" type="application/json"><%- typeof inventory !== 'undefined' ? JSON.stringify(inventory.map(i => ({ id: i.id, name: i.name, set_name: i.set_name || i.set, image: i.image, market_price: i.market_price, lots: i.lots }))) : '[]' %></script>
+
 <script>
   function switchSaleMode(mode) {
       if (mode === 'single') {
@@ -886,22 +888,27 @@
     }
   });
 
+  // Inventory data for giving-side search (embedded by EJS)
+  const tradeInventoryData = JSON.parse(document.getElementById('trade-inventory-data')?.textContent || '[]');
+
+
   // Dynamic Trade Rows
   let tradeCurrentCardsMap = {};
   let tradeSearchTimeouts = {};
+  let tradeGivingSearchTimeouts = {};
 
   function addTradeGivingRow() {
       const container = document.getElementById('trade_giving_container');
       const idx = container.children.length;
+      const rowId = Date.now() + Math.floor(Math.random() * 1000);
       const html = `
-        <div class="trade-giving-row border border-base-200 p-2 rounded-xl relative">
+        <div class="trade-giving-row border border-base-200 p-2 rounded-xl relative" data-giving-row="${rowId}">
           ${idx > 0 ? `<button type="button" class="btn btn-xs btn-circle btn-ghost absolute -top-2 -right-2 bg-base-100 border border-base-300 text-error shadow-sm z-50" onclick="this.parentElement.remove(); updateTradeVal();">✕</button>` : ``}
-          <label class="form-control w-full">
-            <div class="label pt-0 pb-1"><span class="label-text text-xs">Item Giving</span></div>
-            <select name="giving_item_id[]" class="trade-giving-select select select-bordered select-sm w-full" onchange="updateTradeVal(this)" required>
-              <option value="" disabled selected>Select from inventory...</option>
-              <% if(typeof inventory !== 'undefined') { inventory.forEach(i => { let stock = i.lots.reduce((a,b)=>a+b.qty,0); if(stock > 0) { %><option value="<%= i.id %>" data-price="<%= i.market_price || 0 %>"><%= i.name %> (<%= i.set %>) - Est. $<%= i.market_price ? i.market_price.toFixed(2) : '0.00' %></option><% }}) } %>
-            </select>
+          <input type="hidden" name="giving_item_id[]" class="trade-giving-id" value="" />
+          <label class="form-control w-full relative">
+            <div class="label pt-0 pb-1"><span class="label-text text-xs">Item Giving <span class="trade-giving-badge badge badge-xs badge-ghost ml-1 hidden"></span></span></div>
+            <input type="text" placeholder="Search inventory..." class="trade-giving-search input input-bordered input-sm w-full" autocomplete="off" oninput="searchTradeGiving(this, '${rowId}')" required />
+            <ul class="trade-giving-results absolute top-[60px] left-0 w-full bg-base-100 shadow-2xl rounded-lg max-h-48 overflow-y-auto hidden border border-base-300 z-[100]"></ul>
           </label>
           <div class="flex gap-2 mt-2">
               <label class="form-control w-1/2">
@@ -925,7 +932,7 @@
         <div class="trade-receiving-row border border-base-200 p-2 rounded-xl relative" data-row="${idx}">
           ${container.children.length > 0 ? `<button type="button" class="btn btn-xs btn-circle btn-ghost absolute -top-2 -right-2 bg-base-100 border border-base-300 text-error shadow-sm z-50" onclick="this.parentElement.remove(); updateTradeVal();">✕</button>` : ``}
           <label class="form-control w-full relative z-[80]">
-            <div class="label pt-0 pb-1"><span class="label-text text-xs w-full flex justify-between items-center">Item Receiving <select class="trade-data-source select select-bordered select-xs ml-2 border-base-300 bg-base-200"><option value="tcgplayer">TCGPlayer</option><option value="pricecharting">PriceChart</option><option value="manual">Manual/DB</option></select></span></div>
+            <div class="label pt-0 pb-1"><span class="label-text text-xs w-full flex justify-between items-center">Item Receiving <select class="trade-data-source select select-bordered select-xs ml-2 border-base-300 bg-base-200"><option value="pricecharting" selected>PriceChart</option><option value="tcgplayer">TCGPlayer</option><option value="manual">Manual/DB</option></select></span></div>
             <input type="text" name="receiving_name[]" placeholder="Search API..." class="trade-search-input input input-bordered input-sm w-full" autocomplete="off" required />
             <ul class="trade-search-results absolute top-[60px] left-0 w-full bg-base-100 shadow-2xl rounded-lg max-h-60 overflow-y-auto hidden border border-base-300 z-[100] mt-1"></ul>
             
@@ -1029,14 +1036,68 @@
       updateTradeVal();
   }
 
-  function updateTradeVal(selectElementChanged = null) {
-      if (selectElementChanged && selectElementChanged.classList.contains('trade-giving-select')) {
-          const row = selectElementChanged.closest('.trade-giving-row');
-          if(row) {
-             const priceInput = row.querySelector('.trade-giving-price');
-             priceInput.value = parseFloat(selectElementChanged.options[selectElementChanged.selectedIndex]?.dataset.price || 0).toFixed(2);
-          }
+  function searchTradeGiving(input, rowId) {
+      const row = document.querySelector(`.trade-giving-row[data-giving-row="${rowId}"]`);
+      if (!row) return;
+      const resultsUl = row.querySelector('.trade-giving-results');
+      const hiddenId = row.querySelector('.trade-giving-id');
+      const badge = row.querySelector('.trade-giving-badge');
+
+      // Clear selection if user edits the text
+      hiddenId.value = '';
+      badge.classList.add('hidden');
+
+      const q = input.value.trim().toLowerCase();
+      if (!q) { resultsUl.classList.add('hidden'); return; }
+
+      const matches = tradeInventoryData.filter(i => {
+          const stock = (i.lots || []).reduce((s, l) => s + (l.qty || 0), 0);
+          return stock > 0 && (i.name.toLowerCase().includes(q) || (i.set_name || '').toLowerCase().includes(q));
+      }).slice(0, 10);
+
+      if (!matches.length) {
+          resultsUl.innerHTML = '<li class="p-3 text-xs opacity-50 text-center">No matching inventory items</li>';
+          resultsUl.classList.remove('hidden');
+          return;
       }
+
+      resultsUl.innerHTML = matches.map(i => {
+          const stock = (i.lots || []).reduce((s, l) => s + (l.qty || 0), 0);
+          const price = i.market_price || 0;
+          return `<li class="p-2 hover:bg-base-200 cursor-pointer flex items-center gap-2 border-b border-base-200/50 last:border-0"
+              onclick="selectTradeGivingItem(${i.id}, '${i.name.replace(/'/g,"\\'")}', '${(i.set_name||'').replace(/'/g,"\\'")}', ${price}, '${rowId}', ${stock})">
+              ${i.image ? `<img src="${i.image}" class="w-6 h-8 object-contain bg-base-300 rounded-sm flex-shrink-0" />` : ''}
+              <div class="flex-1 min-w-0">
+                <div class="font-bold text-xs truncate">${i.name}</div>
+                <div class="text-[10px] opacity-60">${i.set_name || ''} · <span class="text-warning font-bold">${stock} in stock</span></div>
+              </div>
+              <div class="text-xs font-bold text-success flex-shrink-0">${price ? '$'+price.toFixed(2) : 'N/A'}</div>
+          </li>`;
+      }).join('');
+      resultsUl.classList.remove('hidden');
+  }
+
+  function selectTradeGivingItem(id, name, set, price, rowId, stock) {
+      const row = document.querySelector(`.trade-giving-row[data-giving-row="${rowId}"]`);
+      if (!row) return;
+      row.querySelector('.trade-giving-id').value = id;
+      row.querySelector('.trade-giving-search').value = name + (set ? ' (' + set + ')' : '');
+      row.querySelector('.trade-giving-price').value = price.toFixed(2);
+      const qtyInput = row.querySelector('.trade-giving-qty');
+      qtyInput.max = stock;
+      if (parseInt(qtyInput.value) > stock) qtyInput.value = stock;
+      row.querySelector('.trade-giving-results').classList.add('hidden');
+      updateTradeVal();
+  }
+
+  // Close giving dropdowns on outside click
+  document.addEventListener('click', (e) => {
+      if (!e.target.classList.contains('trade-giving-search')) {
+          document.querySelectorAll('.trade-giving-results').forEach(ul => ul.classList.add('hidden'));
+      }
+  });
+
+  function updateTradeVal() {
 
       let givingTotal = 0;
       document.querySelectorAll('.trade-giving-row').forEach(row => {

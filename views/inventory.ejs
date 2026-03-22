@@ -6,7 +6,8 @@
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
       <h1 class="text-3xl font-extrabold tracking-tight">Inventory</h1>
       
-      <div class="flex gap-2 w-full md:w-auto">
+      <div class="flex flex-col gap-2 w-full md:w-auto">
+      <div class="flex gap-2 w-full">
         <div class="relative flex-1 md:w-64">
           <input type="text" id="inventory_search" placeholder="Search cards..." class="input input-bordered w-full pl-10 rounded-full bg-base-100/50 focus:bg-base-100 transition-colors" autocomplete="off" />
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-base-content/50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
@@ -21,6 +22,29 @@
         </div>
         <button class="btn btn-secondary btn-sm rounded-full hidden md:flex font-bold px-4 shadow-secondary/30 shadow-md" onclick="document.getElementById('import_csv_modal').showModal()">Import CSV</button>
         <button class="btn btn-primary btn-sm rounded-full hidden md:flex font-bold px-4 shadow-primary/30 shadow-md" onclick="document.getElementById('add_item_modal').showModal()">+ Add Item</button>
+      </div>
+      <!-- Category + Set filters -->
+      <div class="flex items-center gap-2 flex-wrap">
+        <%
+          const _allCats = [...new Set(inventory.filter(i => i.lots.reduce((s,l)=>s+l.qty,0)>0).map(i => i.category || 'Uncategorized'))];
+          const _catOrder = { 'Sealed': 1, 'Singles': 2, 'Graded': 3, 'Accessories': 4 };
+          _allCats.sort((a,b) => (_catOrder[a]||99) - (_catOrder[b]||99));
+        %>
+        <div class="join" id="cat-tabs">
+          <button onclick="filterInventory('all')" data-cat="all" class="join-item btn btn-xs btn-primary">All</button>
+          <% _allCats.forEach(cat => { %>
+          <button onclick="filterInventory('<%= cat %>')" data-cat="<%= cat %>" class="join-item btn btn-xs btn-ghost border border-base-300"><%= cat %></button>
+          <% }) %>
+        </div>
+        <select id="set-filter" onchange="filterInventory(document.querySelector('#cat-tabs .btn-primary')?.dataset.cat || 'all')" class="select select-xs select-bordered rounded-full w-44">
+          <option value="">All Sets</option>
+          <%
+            const _allSets = [...new Set(inventory.filter(i => i.lots.reduce((s,l)=>s+l.qty,0)>0 && i.set_name && i.set_name !== 'Custom').map(i => i.set_name))].sort();
+            _allSets.forEach(s => { %>
+          <option value="<%= s %>"><%= s %></option>
+          <% }) %>
+        </select>
+      </div>
       </div>
     </div>
 
@@ -55,11 +79,11 @@
              const catOrder = { 'Sealed': 1, 'Singles': 2, 'Graded': 3, 'Accessories': 4 };
              Object.keys(groupedList).sort((a, b) => (catOrder[a] || 99) - (catOrder[b] || 99)).forEach(category => { 
           %>
-          <tr class="bg-base-200/50 border-b border-base-200" data-category-header>
+          <tr class="bg-base-200/50 border-b border-base-200" data-category-header data-category="<%= category %>">
             <td colspan="6" class="p-2 pl-6 font-black text-primary uppercase tracking-widest text-xs"><%= category %></td>
           </tr>
           <% groupedList[category].forEach(item => { %>
-          <tr class="hover:bg-base-200/30 transition-colors">
+          <tr class="hover:bg-base-200/30 transition-colors" data-category="<%= category %>" data-set="<%= item.set_name %>">
             <td class="p-4 pl-6">
               <div class="flex items-center gap-4">
                 <div class="avatar shadow-sm border border-base-300 rounded-lg overflow-hidden bg-base-200 flex items-center justify-center font-bold text-primary">
@@ -115,14 +139,14 @@
          Object.keys(groupedCard).sort((a, b) => (catOrder[a] || 99) - (catOrder[b] || 99)).forEach(category => { 
       %>
       <!-- Category Block -->
-      <div class="w-full" data-category-block>
+      <div class="w-full" data-category-block data-category="<%= category %>">
         <div class="flex items-center gap-4 mb-4">
            <h2 class="text-xl font-black text-primary uppercase tracking-widest"><%= category %></h2>
            <div class="h-px bg-base-300 flex-1"></div>
         </div>
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-6 w-full">
           <% groupedCard[category].forEach(item => { %>
-          <div class="card bg-base-100 shadow-sm border border-base-200/60 overflow-hidden group hover:shadow-md hover:border-primary/30 transition-all duration-300" data-card-item="<%= item.name %> <%= item.set %> <%= item.condition %>">
+          <div class="card bg-base-100 shadow-sm border border-base-200/60 overflow-hidden group hover:shadow-md hover:border-primary/30 transition-all duration-300" data-card-item="<%= item.name %> <%= item.set %> <%= item.condition %>" data-category="<%= item.category %>" data-set="<%= item.set_name %>">
             <figure class="px-4 pt-5 pb-2 relative flex items-center justify-center h-52 bg-gradient-to-b from-base-200/50 to-transparent">
               <% if(item.has_image) { %><img src="/api/item-image/<%= item.id %>" alt="<%= item.name %>" class="rounded-xl drop-shadow-lg h-full object-contain group-hover:scale-105 transition-transform duration-500" loading="<%= _cardImgIdx++ < 6 ? 'eager' : 'lazy' %>" decoding="async" /><% } else { %><div class="text-6xl font-black text-primary opacity-30"><%= item.name.charAt(0) %></div><% } %>
               <div class="absolute top-4 right-4 badge badge-primary font-bold shadow-md border-none">x<%= item.totalQty %></div>
@@ -177,6 +201,69 @@
   </div>
 </dialog>
 <script>
+  let _activeCat = 'all';
+
+  function applyFilters() {
+    const q      = document.getElementById('inventory_search').value.trim().toLowerCase();
+    const cat    = _activeCat;
+    const setVal = (document.getElementById('set-filter').value || '').toLowerCase();
+
+    // Update set dropdown — only show sets relevant to active category
+    const setSelect = document.getElementById('set-filter');
+    const currentSet = setSelect.value;
+    [...setSelect.options].forEach(opt => {
+      if (!opt.value) return; // keep "All Sets"
+      const optCat = opt.dataset.cat || '';
+      opt.hidden = cat !== 'all' && optCat !== cat;
+    });
+    if (setSelect.options[setSelect.selectedIndex]?.hidden) setSelect.value = '';
+
+    // ── List view ──
+    document.querySelectorAll('tbody tr[data-category]').forEach(row => {
+      const matchCat = cat === 'all' || row.dataset.category === cat;
+      const matchSet = !setVal || (row.dataset.set || '').toLowerCase() === setVal;
+      const matchQ   = !q || row.innerText.toLowerCase().includes(q);
+      row.style.display = (matchCat && matchSet && matchQ) ? '' : 'none';
+    });
+    document.querySelectorAll('tr[data-category-header]').forEach(header => {
+      const matchCat = cat === 'all' || header.dataset.category === cat;
+      if (!matchCat) { header.style.display = 'none'; return; }
+      let next = header.nextElementSibling;
+      let hasVisible = false;
+      while (next && !next.hasAttribute('data-category-header')) {
+        if (next.style.display !== 'none') hasVisible = true;
+        next = next.nextElementSibling;
+      }
+      header.style.display = hasVisible ? '' : 'none';
+    });
+
+    // ── Card view ──
+    document.querySelectorAll('[data-card-item]').forEach(card => {
+      const matchCat = cat === 'all' || card.dataset.category === cat;
+      const matchSet = !setVal || (card.dataset.set || '').toLowerCase() === setVal;
+      const matchQ   = !q || card.dataset.cardItem.toLowerCase().includes(q);
+      card.style.display = (matchCat && matchSet && matchQ) ? '' : 'none';
+    });
+    document.querySelectorAll('[data-category-block]').forEach(block => {
+      const matchCat = cat === 'all' || block.dataset.category === cat;
+      if (!matchCat) { block.style.display = 'none'; return; }
+      const hasVisible = [...block.querySelectorAll('[data-card-item]')].some(c => c.style.display !== 'none');
+      block.style.display = hasVisible ? '' : 'none';
+    });
+  }
+
+  function filterInventory(cat) {
+    _activeCat = cat;
+    // Update tab active state
+    document.querySelectorAll('#cat-tabs button').forEach(btn => {
+      const active = btn.dataset.cat === cat;
+      btn.classList.toggle('btn-primary', active);
+      btn.classList.toggle('btn-ghost', !active);
+      btn.classList.toggle('border-base-300', !active);
+    });
+    applyFilters();
+  }
+
   window.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
     if(urlParams.get('error') === 'operation_invalid') {
@@ -184,41 +271,19 @@
       window.history.replaceState({}, document.title, window.location.pathname);
     }
 
-    // Inventory search filter
-    const searchInput = document.getElementById('inventory_search');
-    searchInput.addEventListener('input', () => {
-      const q = searchInput.value.trim().toLowerCase();
-
-      // List view: filter rows, show/hide category headers as needed
-      document.querySelectorAll('tbody tr:not([colspan])').forEach(row => {
-        const text = row.querySelector('td')?.innerText?.toLowerCase() || '';
-        const fullText = row.innerText.toLowerCase();
-        row.style.display = (!q || fullText.includes(q)) ? '' : 'none';
-      });
-
-      // Hide category header rows if all their items are hidden
-      document.querySelectorAll('tr[data-category-header]').forEach(header => {
-        let next = header.nextElementSibling;
-        let hasVisible = false;
-        while (next && !next.hasAttribute('data-category-header')) {
-          if (next.style.display !== 'none') hasVisible = true;
-          next = next.nextElementSibling;
-        }
-        header.style.display = hasVisible || !q ? '' : 'none';
-      });
-
-      // Card view: filter cards
-      document.querySelectorAll('[data-card-item]').forEach(card => {
-        const text = card.dataset.cardItem.toLowerCase();
-        card.style.display = (!q || text.includes(q)) ? '' : 'none';
-      });
-
-      // Hide category blocks if all their cards are hidden
-      document.querySelectorAll('[data-category-block]').forEach(block => {
-        const hasVisible = [...block.querySelectorAll('[data-card-item]')].some(c => c.style.display !== 'none');
-        block.style.display = hasVisible || !q ? '' : 'none';
-      });
+    // Tag set options with their category for hiding later
+    document.querySelectorAll('tbody tr[data-category]').forEach(row => {
+      const set = (row.dataset.set || '').toLowerCase();
+      const cat = row.dataset.category || '';
+      const opt = document.querySelector(`#set-filter option[value="${row.dataset.set}"]`);
+      if (opt && !opt.dataset.cat) opt.dataset.cat = cat;
     });
+    document.querySelectorAll('[data-card-item]').forEach(card => {
+      const opt = document.querySelector(`#set-filter option[value="${card.dataset.set}"]`);
+      if (opt && !opt.dataset.cat) opt.dataset.cat = card.dataset.category || '';
+    });
+
+    document.getElementById('inventory_search').addEventListener('input', applyFilters);
   });
 </script>
 

@@ -36,12 +36,14 @@
         } else {
           _rangeLabel = range === 'today' ? 'Today' : range === '7' ? 'Last 7 Days' : range === '30' ? 'Last 30 Days' : range === '90' ? 'Last 90 Days' : 'All Time';
         }
-        const _baseUrl = '/?person=' + _person + '&range=';
+        const _baseUrl    = '/?person=' + _person + '&range=';
+        const _rangeParams = 'range=' + range + (_sd ? '&start_date=' + _sd : '') + (_ed ? '&end_date=' + _ed : '');
       %>
-      <!-- Range Selector -->
+      <!-- Period + Seller Selectors -->
       <div class="flex flex-col gap-2">
+        <!-- Period row -->
         <div class="flex items-center gap-2 flex-wrap">
-          <span class="text-[10px] font-bold text-base-content/50 uppercase tracking-wider">Period:</span>
+          <span class="text-[10px] font-bold text-base-content/50 uppercase tracking-wider w-10">Period</span>
           <div class="join">
             <a href="<%= _baseUrl %>today" class="join-item btn btn-xs <%= range === 'today'  ? 'btn-primary' : 'btn-ghost border border-base-300' %>">Today</a>
             <a href="<%= _baseUrl %>7"     class="join-item btn btn-xs <%= range === '7'      ? 'btn-primary' : 'btn-ghost border border-base-300' %>">7D</a>
@@ -53,12 +55,20 @@
               Custom ▾
             </button>
           </div>
-          <% if(_person !== 'all') { %>
-            <span class="badge badge-sm badge-secondary"><%= _person %> <a href="/?range=<%= range %><%= _sd ? '&start_date=' + _sd : '' %><%= _ed ? '&end_date=' + _ed : '' %>" class="ml-1 opacity-60 hover:opacity-100">✕</a></span>
-          <% } %>
         </div>
 
-        <!-- Custom date picker (hidden by default, shown when Custom clicked) -->
+        <!-- Seller row -->
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-[10px] font-bold text-base-content/50 uppercase tracking-wider w-10">Seller</span>
+          <div class="join">
+            <a href="/?person=all&<%= _rangeParams %>" class="join-item btn btn-xs <%= _person === 'all' ? 'btn-secondary' : 'btn-ghost border border-base-300' %>">Everyone</a>
+            <% if(typeof persons !== 'undefined') { persons.forEach(p => { %>
+            <a href="/?person=<%= p %>&<%= _rangeParams %>" class="join-item btn btn-xs <%= _person === p ? 'btn-secondary' : 'btn-ghost border border-base-300' %>"><%= p %></a>
+            <% }) } %>
+          </div>
+        </div>
+
+        <!-- Custom date picker -->
         <form method="GET" action="/" id="custom-range-picker" class="<%= range === 'custom' ? '' : 'hidden' %> flex items-end gap-2 flex-wrap bg-base-100 border border-base-300 rounded-xl px-3 py-2">
           <input type="hidden" name="person" value="<%= _person %>" />
           <input type="hidden" name="range" value="custom" />
@@ -71,7 +81,7 @@
             <input type="date" name="end_date" value="<%= _ed %>" class="input input-xs input-bordered w-36" />
           </label>
           <button type="submit" class="btn btn-xs btn-secondary">Apply</button>
-          <a href="<%= _baseUrl %>30" class="btn btn-xs btn-ghost">Clear</a>
+          <a href="/?person=all&range=30" class="btn btn-xs btn-ghost">Clear</a>
         </form>
       </div>
 
@@ -93,7 +103,7 @@
           <div class="card-body p-4 lg:p-5 flex flex-col justify-center">
             <h2 class="card-title text-[10px] font-bold text-base-content/60 uppercase tracking-wider leading-none">Net Sales</h2>
             <p class="text-2xl font-black mt-2 text-secondary shadow-secondary/10">$<%= sales.reduce((a, b) => a + b.total_price, 0).toFixed(2) %></p>
-            <span class="text-[9px] text-base-content/40 mt-1"><%= _rangeLabel %></span>
+            <span class="text-[9px] text-base-content/40 mt-1"><%= _rangeLabel %><%= _person !== 'all' ? ' · ' + _person : '' %></span>
           </div>
         </div>
 
@@ -106,7 +116,7 @@
               Realized Profit
             </h2>
             <p class="text-3xl font-black mt-2 text-success drop-shadow-sm">$<%= realizedProfit.toFixed(2) %></p>
-            <span class="text-[9px] text-success/40 mt-1"><%= _rangeLabel %></span>
+            <span class="text-[9px] text-success/40 mt-1"><%= _rangeLabel %><%= _person !== 'all' ? ' · ' + _person : '' %></span>
           </div>
         </div>
 
@@ -190,18 +200,13 @@
       <div class="flex flex-col lg:flex-row gap-4">
         <!-- Ledger Filters & Mini Chart (Left Side on Desktop) -->
         <div class="w-full lg:w-1/3 flex flex-col gap-4">
-            <form method="GET" action="/" class="flex flex-col gap-2 bg-base-100 p-3 rounded-2xl border border-base-200 shadow-sm">
-                <input type="hidden" name="range" value="<%= range %>" />
-                <div class="flex items-center justify-between mb-1 px-1">
-                <span class="text-[10px] font-bold text-base-content/60 tracking-wider uppercase">Filter by Seller</span>
+            <div class="bg-base-100 p-3 rounded-2xl border border-base-200 shadow-sm flex flex-col gap-1">
+                <span class="text-[10px] font-bold text-base-content/50 uppercase tracking-wider">Active Filters</span>
+                <div class="flex flex-wrap gap-1 mt-1">
+                  <span class="badge badge-xs badge-ghost border border-base-300"><%= _rangeLabel %></span>
+                  <% if(_person !== 'all') { %><span class="badge badge-xs badge-secondary"><%= _person %></span><% } %>
                 </div>
-                <select name="person" class="select select-bordered select-xs w-full rounded-lg" onchange="this.form.submit()">
-                    <option value="all">All Sellers</option>
-                    <% if(typeof persons !== 'undefined') { persons.forEach(p => { %>
-                        <option value="<%= p %>" <%= (typeof selectedPerson !== 'undefined' && selectedPerson === p) ? 'selected' : '' %>><%= p %></option>
-                    <% }) } %>
-                </select>
-            </form>
+            </div>
 
             <div class="bg-base-100 p-4 rounded-2xl border border-base-200 shadow-sm h-36 relative flex flex-col justify-end overflow-hidden flex-1">
                 <h3 class="absolute top-3 left-4 text-[10px] font-bold uppercase tracking-wider text-base-content/50 z-10">Ledger Velocity</h3>

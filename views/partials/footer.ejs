@@ -1387,10 +1387,13 @@
     submitBtn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
     submitBtn.disabled = true;
     try {
+      // Use URLSearchParams (urlencoded) when no files — multer isn't on every route
+      const hasFiles = [...formEl.querySelectorAll('input[type="file"]')].some(f => f.files.length > 0);
+      const body = hasFiles ? new FormData(formEl) : new URLSearchParams(new FormData(formEl));
       const resp = await fetch(formEl.action, {
         method: 'POST',
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
-        body: new FormData(formEl)
+        body
       });
       const data = await resp.json();
       if (data.success) {

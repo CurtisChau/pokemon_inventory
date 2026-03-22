@@ -1,4 +1,6 @@
 const express = require('express');
+const compression = require('compression');
+const sharp = require('sharp');
 const axios = require('axios');
 const http = require('http');
 const https = require('https');
@@ -34,7 +36,7 @@ const csv = require('csv-parser');
 const fs = require('fs');
 const path = require('path');
 const basicAuth = require('express-basic-auth');
-const { initDB, db, readHydratedInventory, readSales, readShipping, invalidateInventoryCache } = require('./db');
+const { initDB, db, readHydratedInventory, readItemImage, readSales, readShipping, invalidateInventoryCache } = require('./db');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -42,6 +44,10 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
 
 app.set('view engine', 'ejs');
+app.set('etag', 'strong');
+
+// Gzip BEFORE static so static assets are also compressed
+app.use(compression());
 app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
 
@@ -56,6 +62,38 @@ app.use((req, res, next) => {
     if (req.method === 'POST') invalidateInventoryCache();
     next();
 });
+
+// Compress uploaded images: resize to maxPx, output WebP q=80 (~30% smaller than JPEG)
+async function compressImageBuffer(buffer, maxPx = 1200) {
+    try {
+        return await sharp(buffer)
+            .resize(maxPx, maxPx, { fit: 'inside', withoutEnlargement: true })
+            .webp({ quality: 80 })
+            .toBuffer();
+    } catch (e) {
+        console.error('Image compression failed, using original:', e.message);
+        return buffer;
+    }
+}
+
+// Helper: JSON response for fetch/XHR calls, redirect for normal form POSTs
+function respondSuccess(req, res, redirectUrl, message = 'Done') {
+    if (req.headers['x-requested-with'] === 'XMLHttpRequest') {
+        return res.json({ success: true, message });
+    }
+    res.redirect(redirectUrl);
+}
+
+function respondError(req, res, status, message) {
+    if (req.headers['x-requested-with'] === 'XMLHttpRequest') {
+        return res.status(status).json({ success: false, message });
+    }
+    res.redirect('back');
+}
+
+// Price sync status tracking
+let _syncRunning = false;
+let _lastSyncTime = null;
 
 app.get('/', async (req, res) => {
     try {
@@ -185,7 +223,10 @@ app.get('/api/exchange-rate', async (req, res) => {
 // Helper to serve an image stored as data URI or HTTP URL
 function serveImage(imageStr, res) {
     if (!imageStr) return res.status(404).send('No image');
-    if (imageStr.startsWith('http')) return res.redirect(imageStr);
+    if (imageStr.startsWith('http')) {
+        res.set('Cache-Control', 'public, max-age=86400');
+        return res.redirect(imageStr);
+    }
     const match = imageStr.match(/^data:([^;]+);base64,(.+)$/s);
     if (!match) return res.status(400).send('Invalid image');
     const [, mime, b64] = match;
@@ -202,11 +243,11 @@ app.get('/api/sale-image/:id', async (req, res) => {
     } catch (e) { res.status(500).send('Error'); }
 });
 
-// Serve inventory item image on-demand
+// Serve inventory item image on-demand (uses dedicated image cache to avoid per-image DB queries)
 app.get('/api/item-image/:id', async (req, res) => {
     try {
-        const { rows } = await db.query('SELECT image FROM inventory WHERE id = $1', [req.params.id]);
-        serveImage(rows[0]?.image, res);
+        const imageStr = await readItemImage(req.params.id);
+        serveImage(imageStr, res);
     } catch (e) { res.status(500).send('Error'); }
 });
 
@@ -350,8 +391,10 @@ app.post('/inventory/add', upload.single('image_upload'), async (req, res) => {
     if(!name || !qty) return res.redirect('/inventory');
     
     let finalImageUrl = image_url;
-    if (req.file) finalImageUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
-    
+    if (req.file) {
+        const compressed = await compressImageBuffer(req.file.buffer, 1200);
+        finalImageUrl = `data:image/webp;base64,${compressed.toString('base64')}`;
+    }
     let parsedMarketPrice = parseFloat(market_price);
     if(isNaN(parsedMarketPrice)) parsedMarketPrice = null;
 
@@ -495,7 +538,10 @@ app.post('/inventory/edit', upload.single('edit_image_upload'), async (req, res)
         let parsedCog = parseFloat(avg_cog);
         
         let finalImageUrl = image_url;
-        if (req.file) finalImageUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+        if (req.file) {
+            const compressed = await compressImageBuffer(req.file.buffer, 1200);
+            finalImageUrl = `data:image/webp;base64,${compressed.toString('base64')}`;
+        }
 
         const client = await db.connect();
         try {
@@ -640,8 +686,12 @@ app.post('/sales/add', upload.single('sale_image'), async (req, res) => {
     if(!item_id || !qty) return res.redirect('/');
     
     let finalPerson = person === 'Other' ? (person_override || 'Unknown') : (person || 'Unknown');
-    let saleImage = req.file ? `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}` : null;
-    
+    let saleImage = null;
+    if (req.file) {
+        const compressed = await compressImageBuffer(req.file.buffer, 1600);
+        saleImage = `data:image/webp;base64,${compressed.toString('base64')}`;
+    }
+
     try {
         const { rows: items } = await db.query('SELECT * FROM inventory WHERE id = $1', [item_id]);
         const item = items[0];
@@ -694,7 +744,11 @@ app.post('/sales/bulk-add', upload.single('sale_image'), async (req, res) => {
     if (givenIds.length === 0) return res.redirect('/');
     
     let finalPerson = person === 'Other' ? (person_override || 'Unknown') : (person || 'Unknown');
-    let saleImage = req.file ? `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}` : null;
+    let saleImage = null;
+    if (req.file) {
+        const compressed = await compressImageBuffer(req.file.buffer, 1600);
+        saleImage = `data:image/webp;base64,${compressed.toString('base64')}`;
+    }
     let netPrice = (parseFloat(price) || 0) - (parseFloat(shipping_cost) || 0);
     
     try {
@@ -949,9 +1003,14 @@ app.post('/sales/refund', async (req, res) => {
     res.redirect('/');
 });
 
+app.get('/api/sync-status', (req, res) => {
+    res.json({ running: _syncRunning, lastSync: _lastSyncTime });
+});
+
 app.post('/api/sync-prices', async (req, res) => {
-    // Fire and forget simple sync implementation to iterate item by item safely
-    res.redirect('/?syncing=true');
+    if (_syncRunning) return res.json({ success: false, message: 'Sync already running' });
+    _syncRunning = true;
+    res.json({ success: true, message: 'Sync started' });
     try {
         const { rows: items } = await db.query("SELECT id, name, set_name, data_source FROM inventory WHERE data_source IN ('tcgplayer', 'pricecharting')");
         const rate = await getUsdToCadRate();
@@ -995,6 +1054,7 @@ app.post('/api/sync-prices', async (req, res) => {
             await new Promise(r => setTimeout(r, 1000)); // Respect limits (1 req/sec)
         }
     } catch(e) { console.error('Overall Sync Error:', e); }
+    finally { _syncRunning = false; _lastSyncTime = new Date().toISOString(); invalidateInventoryCache(); }
 });
 
 // Multer file-size error handler
@@ -1006,10 +1066,15 @@ app.use((err, req, res, next) => {
     res.status(500).send('Server error: ' + err.message);
 });
 
-initDB().then(() => {
+initDB().then(async () => {
     app.listen(PORT, '0.0.0.0', () => {
         console.log(`Server running on http://0.0.0.0:${PORT}`);
     });
+    // Pre-warm all caches so the first request is fast
+    try {
+        await Promise.all([readHydratedInventory(), readSales(), readShipping()]);
+        console.log('Caches pre-warmed');
+    } catch(e) { console.error('Cache pre-warm failed:', e.message); }
 }).catch(err => {
     console.error('Failed to initialize database:', err);
     process.exit(1);

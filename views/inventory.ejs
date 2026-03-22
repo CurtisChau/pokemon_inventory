@@ -39,9 +39,10 @@
           </tr>
         </thead>
         <tbody>
-          <% 
+          <%
+             let _listImgIdx = 0;
              const groupedList = {};
-             inventory.forEach(item => { 
+             inventory.forEach(item => {
                 let totalQty = item.lots.reduce((sum, l) => sum + l.qty, 0);
                 if (totalQty === 0) return;
                 const cat = item.category || 'Uncategorized';
@@ -63,7 +64,7 @@
               <div class="flex items-center gap-4">
                 <div class="avatar shadow-sm border border-base-300 rounded-lg overflow-hidden bg-base-200 flex items-center justify-center font-bold text-primary">
                   <div class="w-12 h-12 p-1 flex items-center justify-center">
-                    <% if(item.image) { %><img src="/api/item-image/<%= item.id %>" alt="<%= item.name %>" class="object-contain" loading="lazy" decoding="async" /><% } else { %><%= item.name.charAt(0) %><% } %>
+                    <% if(item.has_image) { %><img src="/api/item-image/<%= item.id %>" alt="<%= item.name %>" class="object-contain" loading="<%= _listImgIdx++ < 6 ? 'eager' : 'lazy' %>" decoding="async" /><% } else { %><%= item.name.charAt(0) %><% } %>
                   </div>
                 </div>
                 <div>
@@ -97,9 +98,10 @@
     <% } else { %>
     <!-- Card View -->
     <div class="flex flex-col gap-8 w-full">
-      <% 
+      <%
+         let _cardImgIdx = 0;
          const groupedCard = {};
-         inventory.forEach(item => { 
+         inventory.forEach(item => {
             let totalQty = item.lots.reduce((sum, l) => sum + l.qty, 0);
             if (totalQty === 0) return;
             const cat = item.category || 'Uncategorized';
@@ -122,7 +124,7 @@
           <% groupedCard[category].forEach(item => { %>
           <div class="card bg-base-100 shadow-sm border border-base-200/60 overflow-hidden group hover:shadow-md hover:border-primary/30 transition-all duration-300" data-card-item="<%= item.name %> <%= item.set %> <%= item.condition %>">
             <figure class="px-4 pt-5 pb-2 relative flex items-center justify-center h-52 bg-gradient-to-b from-base-200/50 to-transparent">
-              <% if(item.image) { %><img src="/api/item-image/<%= item.id %>" alt="<%= item.name %>" class="rounded-xl drop-shadow-lg h-full object-contain group-hover:scale-105 transition-transform duration-500" loading="lazy" decoding="async" /><% } else { %><div class="text-6xl font-black text-primary opacity-30"><%= item.name.charAt(0) %></div><% } %>
+              <% if(item.has_image) { %><img src="/api/item-image/<%= item.id %>" alt="<%= item.name %>" class="rounded-xl drop-shadow-lg h-full object-contain group-hover:scale-105 transition-transform duration-500" loading="<%= _cardImgIdx++ < 6 ? 'eager' : 'lazy' %>" decoding="async" /><% } else { %><div class="text-6xl font-black text-primary opacity-30"><%= item.name.charAt(0) %></div><% } %>
               <div class="absolute top-4 right-4 badge badge-primary font-bold shadow-md border-none">x<%= item.totalQty %></div>
             </figure>
             <div class="card-body p-4 pt-2 flex justify-end">

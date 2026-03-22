@@ -1379,6 +1379,21 @@
       document.getElementById('bulk_payload_data').value = JSON.stringify(bulkCart);
       document.getElementById('bulk_add_form').submit();
   }
+
+  // Toast notification system
+  function showToast(message, type = 'success') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    const alertClass = type === 'error' ? 'alert-error' : type === 'warning' ? 'alert-warning' : 'alert-success';
+    toast.className = `alert ${alertClass} shadow-lg text-sm py-2 px-4 flex items-center gap-2 rounded-xl animate-in`;
+    toast.innerHTML = `<span>${message}</span>`;
+    container.appendChild(toast);
+    setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(-8px)'; toast.style.transition = 'all 0.3s'; setTimeout(() => toast.remove(), 300); }, 3000);
+  }
 </script>
+
+<!-- Toast Container -->
+<div id="toast-container" class="fixed bottom-24 right-4 lg:bottom-6 z-[9999] flex flex-col gap-2 items-end pointer-events-none" style="max-width:320px"></div>
+
 </body>
 </html>

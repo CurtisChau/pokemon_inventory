@@ -45,7 +45,22 @@
       "Bash(curl -s -o /dev/null -w \"Inventory: connect=%{time_connect}s TTFB=%{time_starttransfer}s total=%{time_total}s size=%{size_download}b\\\\n\" -u admin:pokemon123 http://localhost:3000/inventory)",
       "Bash(curl -s -o /dev/null -w \"Dashboard: TTFB=%{time_starttransfer}s total=%{time_total}s size=%{size_download}b\\\\n\" -u admin:pokemon123 http://localhost:3000/)",
       "Bash(curl -s -o /dev/null -w \"Inventory: TTFB=%{time_starttransfer}s total=%{time_total}s size=%{size_download}b\\\\n\" -u admin:pokemon123 http://localhost:3000/)",
-      "Bash(curl -s -o /dev/null -w \"item-image \\(HTTP URL redirect\\): TTFB=%{time_starttransfer}s total=%{time_total}s\\\\n\" -u admin:pokemon123 http://localhost:3000/api/item-image/1)"
+      "Bash(curl -s -o /dev/null -w \"item-image \\(HTTP URL redirect\\): TTFB=%{time_starttransfer}s total=%{time_total}s\\\\n\" -u admin:pokemon123 http://localhost:3000/api/item-image/1)",
+      "Bash(npm install:*)",
+      "Bash(curl -s -o /dev/null -w \"Dashboard: TTFB=%{time_starttransfer}s size=%{size_download}b\\\\n\" -u admin:pokemon123 http://localhost:3000/)",
+      "Bash(curl -s -o /dev/null -w \"Inventory: TTFB=%{time_starttransfer}s size=%{size_download}b\\\\n\" -u admin:pokemon123 http://localhost:3000/inventory)",
+      "Bash(curl -s -o /dev/null -w \"item-image cached \\(HTTP URL\\): %{time_total}s\\\\n\" -u admin:pokemon123 http://localhost:3000/api/item-image/1)",
+      "Bash(curl -s -o /dev/null -w \"item-image cached \\(data URI\\): TTFB=%{time_starttransfer}s size=%{size_download}b\\\\n\" -u admin:pokemon123 http://localhost:3000/api/item-image/6)",
+      "Bash(curl -s --compressed -o /dev/null -w \"Dashboard gzipped: TTFB=%{time_starttransfer}s size=%{size_download}b\\\\n\" -u admin:pokemon123 http://localhost:3000/)",
+      "Bash(curl -s --compressed -o /dev/null -w \"Inventory gzipped: TTFB=%{time_starttransfer}s size=%{size_download}b\\\\n\" -u admin:pokemon123 http://localhost:3000/inventory)",
+      "Bash(taskkill //F //PID 50692)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} %{size_download} bytes %{time_total}s\" -u admin:pokemon123 http://localhost:3000/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} %{size_download} bytes %{time_total}s\" -u admin:pokemon123 http://localhost:3000/inventory)",
+      "Bash(curl -s -o /dev/null -w \"\\\\n%{http_code} %{size_download} bytes %{time_total}s\" -u admin:pokemon123 http://localhost:3000/api/item-image/1)",
+      "Bash(curl -s -w \"\\\\n%{http_code} %{time_total}s\" -u admin:pokemon123 http://localhost:3000/api/sync-status)",
+      "Bash(curl -s -X POST -H \"X-Requested-With: XMLHttpRequest\" -u admin:pokemon123 http://localhost:3000/api/sync-prices)",
+      "Bash(curl -s -u admin:pokemon123 http://localhost:3000/api/sync-status)",
+      "Bash(find c:Userscurti -name *northern_aura* -o -name *northern*aura*)"
     ]
   }
 }

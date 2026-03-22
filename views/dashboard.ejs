@@ -10,15 +10,34 @@
   <div class="flex flex-col gap-6">
     <!-- TOP SECTION -->
     <div class="flex flex-col gap-6 w-full">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h1 class="text-3xl font-extrabold tracking-tight bg-gradient-to-br from-base-content to-base-content/60 bg-clip-text text-transparent drop-shadow-sm">Dashboard Overview</h1>
-        <div class="flex items-center gap-2">
-          <!-- We moved Global Range filter to Ledger, or we can keep a quick Sync button here -->
-          <button id="syncBtn" onclick="startSync()" class="btn btn-primary btn-sm rounded-full px-6 shadow-lg shadow-primary/30 flex items-center gap-1 hover:scale-105 transition-transform">
+        <div class="flex items-center gap-2 flex-wrap">
+          <button id="syncBtn" onclick="startSync()" class="btn btn-primary btn-sm rounded-full px-5 shadow-lg shadow-primary/30 flex items-center gap-1 hover:scale-105 transition-transform">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" /></svg>
             Sync Prices
           </button>
         </div>
+      </div>
+
+      <%
+        const _person = typeof selectedPerson !== 'undefined' ? selectedPerson : 'all';
+        const _rangeLabel = range === 'today' ? 'Today' : range === '7' ? 'Last 7 Days' : range === '30' ? 'Last 30 Days' : range === '90' ? 'Last 90 Days' : 'All Time';
+        const _baseUrl = '/?person=' + _person + '&range=';
+      %>
+      <!-- Range Selector -->
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="text-[10px] font-bold text-base-content/50 uppercase tracking-wider">Period:</span>
+        <div class="join">
+          <a href="<%= _baseUrl %>today" class="join-item btn btn-xs <%= range === 'today' ? 'btn-primary' : 'btn-ghost border border-base-300' %>">Today</a>
+          <a href="<%= _baseUrl %>7"     class="join-item btn btn-xs <%= range === '7'     ? 'btn-primary' : 'btn-ghost border border-base-300' %>">7D</a>
+          <a href="<%= _baseUrl %>30"    class="join-item btn btn-xs <%= range === '30' || !range ? 'btn-primary' : 'btn-ghost border border-base-300' %>">30D</a>
+          <a href="<%= _baseUrl %>90"    class="join-item btn btn-xs <%= range === '90'    ? 'btn-primary' : 'btn-ghost border border-base-300' %>">90D</a>
+          <a href="<%= _baseUrl %>all"   class="join-item btn btn-xs <%= range === 'all'   ? 'btn-primary' : 'btn-ghost border border-base-300' %>">All Time</a>
+        </div>
+        <% if(_person !== 'all') { %>
+          <span class="badge badge-sm badge-secondary"><%= _person %> <a href="/?range=<%= range %>" class="ml-1 opacity-60 hover:opacity-100">✕</a></span>
+        <% } %>
       </div>
 
       <!-- Stats Carousel/Grid -->
@@ -39,9 +58,10 @@
           <div class="card-body p-4 lg:p-5 flex flex-col justify-center">
             <h2 class="card-title text-[10px] font-bold text-base-content/60 uppercase tracking-wider leading-none">Net Sales</h2>
             <p class="text-2xl font-black mt-2 text-secondary shadow-secondary/10">$<%= sales.reduce((a, b) => a + b.total_price, 0).toFixed(2) %></p>
+            <span class="text-[9px] text-base-content/40 mt-1"><%= _rangeLabel %></span>
           </div>
         </div>
-        
+
         <!-- Highlighted Profit Card -->
         <div class="card bg-base-100 shadow-sm border border-success/30 relative overflow-hidden outline outline-action/30 col-span-2 lg:col-span-1">
           <div class="absolute -right-4 -top-4 bg-success/20 w-16 h-16 rounded-full blur-xl"></div>
@@ -51,6 +71,7 @@
               Realized Profit
             </h2>
             <p class="text-3xl font-black mt-2 text-success drop-shadow-sm">$<%= realizedProfit.toFixed(2) %></p>
+            <span class="text-[9px] text-success/40 mt-1"><%= _rangeLabel %></span>
           </div>
         </div>
 
@@ -73,7 +94,7 @@
         <div class="card bg-base-100 shadow-sm border border-base-200/50 relative overflow-hidden">
           <div class="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent pointer-events-none"></div>
           <div class="card-body p-4 lg:p-6 z-10">
-            <h2 class="card-title text-sm font-bold text-base-content/70 uppercase tracking-wider mb-2">Sales Revenue Trend</h2>
+            <h2 class="card-title text-sm font-bold text-base-content/70 uppercase tracking-wider mb-2">Sales Revenue Trend <span class="badge badge-xs badge-ghost ml-1 font-normal normal-case"><%= _rangeLabel %></span></h2>
             <div class="h-64 w-full relative">
               <canvas id="salesChart"></canvas>
             </div>
@@ -135,23 +156,16 @@
         <!-- Ledger Filters & Mini Chart (Left Side on Desktop) -->
         <div class="w-full lg:w-1/3 flex flex-col gap-4">
             <form method="GET" action="/" class="flex flex-col gap-2 bg-base-100 p-3 rounded-2xl border border-base-200 shadow-sm">
+                <input type="hidden" name="range" value="<%= range %>" />
                 <div class="flex items-center justify-between mb-1 px-1">
-                <span class="text-[10px] font-bold text-base-content/60 tracking-wider uppercase">Filter Data</span>
+                <span class="text-[10px] font-bold text-base-content/60 tracking-wider uppercase">Filter by Seller</span>
                 </div>
-                <div class="flex items-center gap-2">
-                <select name="range" class="select select-bordered select-xs w-1/2 rounded-lg" onchange="this.form.submit()">
-                    <option value="7" <%= range === '7' ? 'selected' : '' %>>Last 7 Days</option>
-                    <option value="30" <%= (range === '30' || !range) ? 'selected' : '' %>>Last 30 Days</option>
-                    <option value="90" <%= range === '90' ? 'selected' : '' %>>Last 90 Days</option>
-                    <option value="all" <%= range === 'all' ? 'selected' : '' %>>All Time</option>
-                </select>
-                <select name="person" class="select select-bordered select-xs w-1/2 rounded-lg" onchange="this.form.submit()">
+                <select name="person" class="select select-bordered select-xs w-full rounded-lg" onchange="this.form.submit()">
                     <option value="all">All Sellers</option>
                     <% if(typeof persons !== 'undefined') { persons.forEach(p => { %>
                         <option value="<%= p %>" <%= (typeof selectedPerson !== 'undefined' && selectedPerson === p) ? 'selected' : '' %>><%= p %></option>
                     <% }) } %>
                 </select>
-                </div>
             </form>
 
             <div class="bg-base-100 p-4 rounded-2xl border border-base-200 shadow-sm h-36 relative flex flex-col justify-end overflow-hidden flex-1">

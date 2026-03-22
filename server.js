@@ -120,7 +120,11 @@ app.get('/', async (req, res) => {
         let filteredActivity = activity;
         let filteredSales = sales;
         // Apply Filters
-        if (range !== 'all') {
+        if (range === 'today') {
+            const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+            filteredActivity = filteredActivity.filter(s => new Date(s.date) >= todayStart);
+            filteredSales = filteredSales.filter(s => new Date(s.date) >= todayStart);
+        } else if (range !== 'all') {
             const rangeDate = new Date();
             rangeDate.setDate(rangeDate.getDate() - parseInt(range));
             filteredActivity = filteredActivity.filter(s => new Date(s.date) >= rangeDate);

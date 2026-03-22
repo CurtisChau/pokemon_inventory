@@ -442,9 +442,11 @@ app.post('/inventory/add', upload.single('image_upload'), async (req, res) => {
         } finally {
             client.release();
         }
-    } catch(e) { console.error('Add Inventory Error:', e); }
-    
-    res.redirect('/inventory');
+    } catch(e) {
+        console.error('Add Inventory Error:', e);
+        return respondError(req, res, 500, 'Failed to add item: ' + e.message);
+    }
+    respondSuccess(req, res, '/inventory', 'Item added!');
 });
 
 // Helper for background sync without overwriting price
@@ -729,9 +731,11 @@ app.post('/sales/add', upload.single('sale_image'), async (req, res) => {
         } finally {
             client.release();
         }
-    } catch(e) { console.error('Sale Add Error:', e); }
-    
-    res.redirect('/');
+    } catch(e) {
+        console.error('Sale Add Error:', e);
+        return respondError(req, res, 500, 'Failed to record sale: ' + e.message);
+    }
+    respondSuccess(req, res, '/', 'Sale recorded!');
 });
 
 app.post('/sales/bulk-add', upload.single('sale_image'), async (req, res) => {
@@ -802,9 +806,11 @@ app.post('/sales/bulk-add', upload.single('sale_image'), async (req, res) => {
         } finally {
             client.release();
         }
-    } catch(e) { console.error('Bulk Sale Add Error:', e); }
-    
-    res.redirect('/');
+    } catch(e) {
+        console.error('Bulk Sale Add Error:', e);
+        return respondError(req, res, 500, 'Failed to record bulk sale: ' + e.message);
+    }
+    respondSuccess(req, res, '/', 'Bulk sale recorded!');
 });
 
 app.post('/shipping/undo', async (req, res) => {
@@ -963,8 +969,11 @@ app.post('/trade/add', async (req, res) => {
         } finally {
             client.release();
         }
-    } catch(e) { console.error('Trade Add Error:', e); }
-    res.redirect('/');
+    } catch(e) {
+        console.error('Trade Add Error:', e);
+        return respondError(req, res, 500, 'Failed to record trade: ' + e.message);
+    }
+    respondSuccess(req, res, '/', 'Trade recorded!');
 });
 
 app.post('/sales/refund', async (req, res) => {

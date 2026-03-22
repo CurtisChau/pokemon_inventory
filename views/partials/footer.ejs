@@ -639,7 +639,7 @@
     </div>
     
     <!-- SINGLE SALE FORM -->
-    <form id="sale_single_form" method="POST" action="/sales/add" enctype="multipart/form-data" class="space-y-4 overflow-y-auto flex-1 p-4 sm:p-6" onsubmit="if(!document.getElementById('sale_item_id').value){alert('Please select an item from the search results.');return false;}">
+    <form id="sale_single_form" method="POST" action="/sales/add" enctype="multipart/form-data" class="space-y-4 overflow-y-auto flex-1 p-4 sm:p-6">
       <label class="form-control w-full relative">
         <div class="label"><span class="label-text">Select Item</span></div>
         <input type="hidden" name="item_id" id="sale_item_id" value="" />
@@ -1379,6 +1379,53 @@
       document.getElementById('bulk_payload_data').value = JSON.stringify(bulkCart);
       document.getElementById('bulk_add_form').submit();
   }
+
+  // Intercept a form: submit via fetch, show toast, reload on success
+  async function interceptForm(formEl, successMsg) {
+    const submitBtn = formEl.querySelector('[type="submit"]');
+    const origHtml = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+    submitBtn.disabled = true;
+    try {
+      const resp = await fetch(formEl.action, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        body: new FormData(formEl)
+      });
+      const data = await resp.json();
+      if (data.success) {
+        showToast(successMsg || data.message);
+        formEl.closest('dialog')?.close();
+        setTimeout(() => location.reload(), 800);
+      } else {
+        showToast(data.message || 'Something went wrong', 'error');
+        submitBtn.innerHTML = origHtml;
+        submitBtn.disabled = false;
+      }
+    } catch(e) {
+      showToast('Network error — please try again', 'error');
+      submitBtn.innerHTML = origHtml;
+      submitBtn.disabled = false;
+    }
+  }
+
+  // Wire forms on page load
+  document.addEventListener('DOMContentLoaded', () => {
+    const saleSingle = document.getElementById('sale_single_form');
+    if (saleSingle) saleSingle.addEventListener('submit', e => {
+      if (!document.getElementById('sale_item_id').value) { showToast('Please select an item from search results', 'warning'); e.preventDefault(); return; }
+      e.preventDefault(); interceptForm(saleSingle, 'Sale recorded!');
+    });
+
+    const saleMulti = document.getElementById('sale_multi_form');
+    if (saleMulti) saleMulti.addEventListener('submit', e => { e.preventDefault(); interceptForm(saleMulti, 'Bulk sale recorded!'); });
+
+    const tradeForm = document.getElementById('trade_form');
+    if (tradeForm) tradeForm.addEventListener('submit', e => { e.preventDefault(); interceptForm(tradeForm, 'Trade recorded!'); });
+
+    const addForm = document.getElementById('single_add_form');
+    if (addForm) addForm.addEventListener('submit', e => { e.preventDefault(); interceptForm(addForm, 'Item added!'); });
+  });
 
   // Toast notification system
   function showToast(message, type = 'success') {

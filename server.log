@@ -1,5 +1,5 @@
-[dotenv@17.3.1] injecting env (1) from .env -- tip: 🤖 agentic secret storage: https://dotenvx.com/as2
-Updated exchange rates: { CAD: 1.37184, CNY: 6.902952, HKD: 7.833992 }
+[dotenv@17.3.1] injecting env (1) from .env -- tip: ⚙️  override existing env vars with { override: true }
+Updated exchange rates: { CAD: 1.37184, CNY: 6.899191, HKD: 7.834245 }
 PostgreSQL Database Initialized!
 Server running on http://0.0.0.0:3000
 Caches pre-warmed

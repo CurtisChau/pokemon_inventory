@@ -11,7 +11,13 @@
     <!-- TOP SECTION -->
     <div class="flex flex-col gap-6 w-full">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h1 class="text-3xl font-extrabold tracking-tight bg-gradient-to-br from-base-content to-base-content/60 bg-clip-text text-transparent drop-shadow-sm">Dashboard Overview</h1>
+        <div>
+          <h1 class="text-3xl font-extrabold tracking-tight bg-gradient-to-br from-base-content to-base-content/60 bg-clip-text text-transparent drop-shadow-sm">Dashboard Overview</h1>
+          <div class="flex items-center gap-1.5 mt-1">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-base-content/40" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span id="est-clock" class="text-xs font-mono text-base-content/50"></span>
+          </div>
+        </div>
         <div class="flex items-center gap-2 flex-wrap">
           <button id="syncBtn" onclick="startSync()" class="btn btn-primary btn-sm rounded-full px-5 shadow-lg shadow-primary/30 flex items-center gap-1 hover:scale-105 transition-transform">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" /></svg>
@@ -22,22 +28,51 @@
 
       <%
         const _person = typeof selectedPerson !== 'undefined' ? selectedPerson : 'all';
-        const _rangeLabel = range === 'today' ? 'Today' : range === '7' ? 'Last 7 Days' : range === '30' ? 'Last 30 Days' : range === '90' ? 'Last 90 Days' : 'All Time';
+        const _sd = typeof startDate !== 'undefined' ? startDate : '';
+        const _ed = typeof endDate   !== 'undefined' ? endDate   : '';
+        let _rangeLabel;
+        if (range === 'custom' && _sd) {
+          _rangeLabel = _sd === _ed || !_ed ? _sd : _sd + ' → ' + _ed;
+        } else {
+          _rangeLabel = range === 'today' ? 'Today' : range === '7' ? 'Last 7 Days' : range === '30' ? 'Last 30 Days' : range === '90' ? 'Last 90 Days' : 'All Time';
+        }
         const _baseUrl = '/?person=' + _person + '&range=';
       %>
       <!-- Range Selector -->
-      <div class="flex items-center gap-2 flex-wrap">
-        <span class="text-[10px] font-bold text-base-content/50 uppercase tracking-wider">Period:</span>
-        <div class="join">
-          <a href="<%= _baseUrl %>today" class="join-item btn btn-xs <%= range === 'today' ? 'btn-primary' : 'btn-ghost border border-base-300' %>">Today</a>
-          <a href="<%= _baseUrl %>7"     class="join-item btn btn-xs <%= range === '7'     ? 'btn-primary' : 'btn-ghost border border-base-300' %>">7D</a>
-          <a href="<%= _baseUrl %>30"    class="join-item btn btn-xs <%= range === '30' || !range ? 'btn-primary' : 'btn-ghost border border-base-300' %>">30D</a>
-          <a href="<%= _baseUrl %>90"    class="join-item btn btn-xs <%= range === '90'    ? 'btn-primary' : 'btn-ghost border border-base-300' %>">90D</a>
-          <a href="<%= _baseUrl %>all"   class="join-item btn btn-xs <%= range === 'all'   ? 'btn-primary' : 'btn-ghost border border-base-300' %>">All Time</a>
+      <div class="flex flex-col gap-2">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-[10px] font-bold text-base-content/50 uppercase tracking-wider">Period:</span>
+          <div class="join">
+            <a href="<%= _baseUrl %>today" class="join-item btn btn-xs <%= range === 'today'  ? 'btn-primary' : 'btn-ghost border border-base-300' %>">Today</a>
+            <a href="<%= _baseUrl %>7"     class="join-item btn btn-xs <%= range === '7'      ? 'btn-primary' : 'btn-ghost border border-base-300' %>">7D</a>
+            <a href="<%= _baseUrl %>30"    class="join-item btn btn-xs <%= range === '30' || (!range && range !== 'custom') ? 'btn-primary' : 'btn-ghost border border-base-300' %>">30D</a>
+            <a href="<%= _baseUrl %>90"    class="join-item btn btn-xs <%= range === '90'     ? 'btn-primary' : 'btn-ghost border border-base-300' %>">90D</a>
+            <a href="<%= _baseUrl %>all"   class="join-item btn btn-xs <%= range === 'all'    ? 'btn-primary' : 'btn-ghost border border-base-300' %>">All Time</a>
+            <button type="button" onclick="document.getElementById('custom-range-picker').classList.toggle('hidden')"
+              class="join-item btn btn-xs <%= range === 'custom' ? 'btn-secondary' : 'btn-ghost border border-base-300' %>">
+              Custom ▾
+            </button>
+          </div>
+          <% if(_person !== 'all') { %>
+            <span class="badge badge-sm badge-secondary"><%= _person %> <a href="/?range=<%= range %><%= _sd ? '&start_date=' + _sd : '' %><%= _ed ? '&end_date=' + _ed : '' %>" class="ml-1 opacity-60 hover:opacity-100">✕</a></span>
+          <% } %>
         </div>
-        <% if(_person !== 'all') { %>
-          <span class="badge badge-sm badge-secondary"><%= _person %> <a href="/?range=<%= range %>" class="ml-1 opacity-60 hover:opacity-100">✕</a></span>
-        <% } %>
+
+        <!-- Custom date picker (hidden by default, shown when Custom clicked) -->
+        <form method="GET" action="/" id="custom-range-picker" class="<%= range === 'custom' ? '' : 'hidden' %> flex items-end gap-2 flex-wrap bg-base-100 border border-base-300 rounded-xl px-3 py-2">
+          <input type="hidden" name="person" value="<%= _person %>" />
+          <input type="hidden" name="range" value="custom" />
+          <label class="flex flex-col gap-1">
+            <span class="text-[9px] font-bold uppercase text-base-content/50">From</span>
+            <input type="date" name="start_date" value="<%= _sd %>" class="input input-xs input-bordered w-36" required />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-[9px] font-bold uppercase text-base-content/50">To (leave blank = today)</span>
+            <input type="date" name="end_date" value="<%= _ed %>" class="input input-xs input-bordered w-36" />
+          </label>
+          <button type="submit" class="btn btn-xs btn-secondary">Apply</button>
+          <a href="<%= _baseUrl %>30" class="btn btn-xs btn-ghost">Clear</a>
+        </form>
       </div>
 
       <!-- Stats Carousel/Grid -->
@@ -378,6 +413,18 @@
 </dialog>
 
 <script>
+  // EST clock (handles EST/EDT automatically via America/New_York)
+  (function tickClock() {
+    const el = document.getElementById('est-clock');
+    if (!el) return;
+    const now = new Date();
+    const date = now.toLocaleDateString('en-US', { timeZone: 'America/New_York', weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    const time = now.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const tz   = now.toLocaleTimeString('en-US', { timeZone: 'America/New_York', timeZoneName: 'short' }).split(' ').pop();
+    el.textContent = date + '  ·  ' + time + ' ' + tz;
+    setTimeout(tickClock, 1000);
+  })();
+
   async function startSync() {
     const btn = document.getElementById('syncBtn');
     btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Syncing...';

@@ -117,10 +117,17 @@ app.get('/', async (req, res) => {
         });
         
         let range = req.query.range || '30';
+        const startDate = req.query.start_date || '';
+        const endDate   = req.query.end_date   || '';
         let filteredActivity = activity;
         let filteredSales = sales;
         // Apply Filters
-        if (range === 'today') {
+        if (range === 'custom' && startDate) {
+            const from = new Date(startDate); from.setHours(0,0,0,0);
+            const to   = endDate ? new Date(endDate) : new Date(); to.setHours(23,59,59,999);
+            filteredActivity = filteredActivity.filter(s => { const d = new Date(s.date); return d >= from && d <= to; });
+            filteredSales    = filteredSales.filter(s    => { const d = new Date(s.date); return d >= from && d <= to; });
+        } else if (range === 'today') {
             const todayStart = new Date(); todayStart.setHours(0,0,0,0);
             filteredActivity = filteredActivity.filter(s => new Date(s.date) >= todayStart);
             filteredSales = filteredSales.filter(s => new Date(s.date) >= todayStart);
@@ -138,7 +145,7 @@ app.get('/', async (req, res) => {
         const totalValue = inventory.reduce((sum, item) => sum + ((item.market_price || 0) * item.lots.reduce((q, l) => q + l.qty, 0)), 0);
         const totalShipping = shipping.reduce((sum, s) => sum + (parseFloat(s.cost) || 0), 0);
         
-        res.render('dashboard', { inventory, activity: filteredActivity, sales: filteredSales, persons, selectedPerson, range, totalValue, totalShipping, currentPath: '/' });
+        res.render('dashboard', { inventory, activity: filteredActivity, sales: filteredSales, persons, selectedPerson, range, startDate, endDate, totalValue, totalShipping, currentPath: '/' });
     } catch(e) { console.error('Dashboard Error:', e); res.send('Error loading dashboard: ' + e.message + '\n' + e.stack); }
 });
 
